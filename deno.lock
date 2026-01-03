@@ -1,0 +1,92 @@
+{
+  "version": "5",
+  "specifiers": {
+    "jsr:@marianmeres/batch@^1.1.0": "1.1.0",
+    "jsr:@marianmeres/clog@^3.10.0": "3.15.0",
+    "jsr:@marianmeres/clog@^3.15.0": "3.15.0",
+    "jsr:@marianmeres/collection-types@^1.9.0": "1.10.0",
+    "jsr:@marianmeres/npmbuild@1": "1.10.0",
+    "jsr:@marianmeres/pubsub@^2.4.4": "2.4.5",
+    "jsr:@marianmeres/pubsub@^2.4.5": "2.4.5",
+    "jsr:@marianmeres/store@^2.4.2": "2.4.2",
+    "jsr:@std/assert@^1.0.16": "1.0.16",
+    "jsr:@std/collections@^1.1.3": "1.1.3",
+    "jsr:@std/fs@^1.0.20": "1.0.21",
+    "jsr:@std/fs@^1.0.21": "1.0.21",
+    "jsr:@std/internal@^1.0.12": "1.0.12",
+    "jsr:@std/path@^1.1.3": "1.1.4",
+    "jsr:@std/path@^1.1.4": "1.1.4"
+  },
+  "jsr": {
+    "@marianmeres/batch@1.1.0": {
+      "integrity": "0f85ed65327344b6b2d3ff195a2da4929ea351d9dd48e506cd79d3eb7140f394",
+      "dependencies": [
+        "jsr:@marianmeres/clog@^3.10.0",
+        "jsr:@marianmeres/pubsub@^2.4.4"
+      ]
+    },
+    "@marianmeres/clog@3.15.0": {
+      "integrity": "0eb9aa14f23885489ac74dd1260065a4f638e2db22392ae6f2af12b1b2ea097e",
+      "dependencies": [
+        "jsr:@marianmeres/batch"
+      ]
+    },
+    "@marianmeres/collection-types@1.10.0": {
+      "integrity": "c13061b1705fb8fcc86523766268b55cd9bfd7d75807bfdcd1ef78933176ae94"
+    },
+    "@marianmeres/npmbuild@1.10.0": {
+      "integrity": "eb45240930dbdf7b870af50a99496adf2e98683e25d57c4a0864387760e05e69",
+      "dependencies": [
+        "jsr:@std/collections",
+        "jsr:@std/fs@^1.0.21",
+        "jsr:@std/path@^1.1.4"
+      ]
+    },
+    "@marianmeres/pubsub@2.4.5": {
+      "integrity": "9050392e5bcbf5fb0210e2c61fcfa7bb23c9e7ca3d9c43f5d16033f53ba0d130"
+    },
+    "@marianmeres/store@2.4.2": {
+      "integrity": "3d93952e33a23e1ac72ab5ef340045732c510a493bce9ff8bf8eb9ee3b07b8f8",
+      "dependencies": [
+        "jsr:@marianmeres/pubsub@^2.4.5"
+      ]
+    },
+    "@std/assert@1.0.16": {
+      "integrity": "6a7272ed1eaa77defe76e5ff63ca705d9c495077e2d5fd0126d2b53fc5bd6532",
+      "dependencies": [
+        "jsr:@std/internal"
+      ]
+    },
+    "@std/collections@1.1.3": {
+      "integrity": "bf8b0818886df6a32b64c7d3b037a425111f28278d69fd0995aeb62777c986b0"
+    },
+    "@std/fs@1.0.21": {
+      "integrity": "d720fe1056d78d43065a4d6e0eeb2b19f34adb8a0bc7caf3a4dbf1d4178252cd",
+      "dependencies": [
+        "jsr:@std/internal",
+        "jsr:@std/path@^1.1.4"
+      ]
+    },
+    "@std/internal@1.0.12": {
+      "integrity": "972a634fd5bc34b242024402972cd5143eac68d8dffaca5eaa4dba30ce17b027"
+    },
+    "@std/path@1.1.4": {
+      "integrity": "1d2d43f39efb1b42f0b1882a25486647cb851481862dc7313390b2bb044314b5",
+      "dependencies": [
+        "jsr:@std/internal"
+      ]
+    }
+  },
+  "workspace": {
+    "dependencies": [
+      "jsr:@marianmeres/clog@^3.15.0",
+      "jsr:@marianmeres/collection-types@^1.9.0",
+      "jsr:@marianmeres/npmbuild@1",
+      "jsr:@marianmeres/pubsub@^2.4.5",
+      "jsr:@marianmeres/store@^2.4.2",
+      "jsr:@std/assert@^1.0.16",
+      "jsr:@std/fs@^1.0.20",
+      "jsr:@std/path@^1.1.3"
+    ]
+  }
+}
