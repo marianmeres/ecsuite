@@ -1,5 +1,8 @@
 /**
+ * @module suite
+ *
  * ECSuite - Main orchestrator for e-commerce frontend state management.
+ * Coordinates all domain managers, provides shared event system, and manages context.
  */
 
 import { createClog } from "@marianmeres/clog";
@@ -50,7 +53,23 @@ export interface ECSuiteConfig {
 	autoInitialize?: boolean;
 }
 
-/** Main ECSuite class */
+/**
+ * Main ECSuite class - orchestrates all e-commerce domain managers.
+ *
+ * Provides unified access to cart, wishlist, order, customer, payment, and product domains
+ * with shared event system and context management.
+ *
+ * @example
+ * ```typescript
+ * const suite = createECSuite({
+ *   context: { customerId: "user-123" },
+ *   adapters: { cart: myCartAdapter },
+ * });
+ *
+ * suite.cart.subscribe((state) => console.log(state));
+ * await suite.cart.addItem({ product_id: "prod-1", quantity: 1 });
+ * ```
+ */
 export class ECSuite {
 	private readonly _clog = createClog("ecsuite", { color: "auto" });
 	private readonly _pubsub: PubSub;
@@ -185,7 +204,24 @@ export class ECSuite {
 	}
 }
 
-/** Factory function to create ECSuite instance */
+/**
+ * Factory function to create an ECSuite instance.
+ *
+ * @param config - Optional configuration for the suite
+ * @returns A new ECSuite instance
+ *
+ * @example
+ * ```typescript
+ * const suite = createECSuite({
+ *   context: { customerId: "user-123" },
+ *   adapters: {
+ *     cart: myCartAdapter,
+ *     wishlist: myWishlistAdapter,
+ *   },
+ *   storage: { type: "local" },
+ * });
+ * ```
+ */
 export function createECSuite(config?: ECSuiteConfig): ECSuite {
 	return new ECSuite(config);
 }

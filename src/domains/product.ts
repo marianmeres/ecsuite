@@ -1,4 +1,6 @@
 /**
+ * @module domains/product
+ *
  * Product domain manager with in-memory caching.
  *
  * Read-only domain for fetching product data with caching support.
@@ -30,7 +32,30 @@ export interface ProductManagerOptions {
 	cacheTtl?: number;
 }
 
-/** Product manager with caching */
+/**
+ * Product manager with in-memory caching.
+ *
+ * Unlike other domain managers, ProductManager uses a simple cache layer
+ * instead of a full state machine. Products are fetched on-demand and cached
+ * with a configurable TTL.
+ *
+ * Features:
+ * - In-memory cache with TTL expiration
+ * - Single and batch product fetching
+ * - Prefetching support for UI optimization
+ * - Event emission on fetch
+ *
+ * @example
+ * ```typescript
+ * const products = new ProductManager({
+ *   adapter: myProductAdapter,
+ *   cacheTtl: 10 * 60 * 1000, // 10 minutes
+ * });
+ *
+ * const product = await products.getById("prod-123");
+ * const many = await products.getByIds(["prod-1", "prod-2"]);
+ * ```
+ */
 export class ProductManager {
 	private readonly _clog = createClog("ecsuite:product", { color: "auto" });
 	private readonly _pubsub: PubSub;
@@ -47,30 +72,50 @@ export class ProductManager {
 		this._clog.debug("initialized", { cacheTtl: this._cacheTtl });
 	}
 
-	/** Set the adapter */
+	/**
+	 * Set the product adapter for server communication.
+	 *
+	 * @param adapter - The ProductAdapter implementation
+	 */
 	setAdapter(adapter: ProductAdapter): void {
 		this._adapter = adapter;
 		this._clog.debug("adapter set");
 	}
 
-	/** Get the adapter (may be null) */
+	/**
+	 * Get the current adapter.
+	 *
+	 * @returns The adapter or null if not set
+	 */
 	getAdapter(): ProductAdapter | null {
 		return this._adapter;
 	}
 
-	/** Update context (customerId, sessionId) */
+	/**
+	 * Update context (customerId, sessionId).
+	 *
+	 * @param context - Context to merge with existing context
+	 */
 	setContext(context: DomainContext): void {
 		this._context = { ...this._context, ...context };
 	}
 
-	/** Get the current context */
+	/**
+	 * Get the current context.
+	 *
+	 * @returns Copy of the current context
+	 */
 	getContext(): DomainContext {
 		return { ...this._context };
 	}
 
 	/**
-	 * Get single product by ID.
+	 * Get a single product by ID.
 	 * Returns from cache if valid, otherwise fetches from server.
+	 *
+	 * @param productId - The product ID to fetch
+	 * @returns The product data or null if not found/error
+	 * @emits product:fetched - On successful server fetch
 	 */
 	async getById(productId: UUID): Promise<ProductData | null> {
 		// Check cache first
@@ -102,8 +147,11 @@ export class ProductManager {
 
 	/**
 	 * Get multiple products by IDs.
-	 * Returns a Map of productId -> ProductData.
-	 * Fetches missing products from server in batch.
+	 * Returns from cache when available, fetches missing products in batch.
+	 *
+	 * @param productIds - Array of product IDs to fetch
+	 * @returns Map of productId to ProductData
+	 * @emits product:fetched - For each product fetched from server
 	 */
 	async getByIds(productIds: UUID[]): Promise<Map<UUID, ProductData>> {
 		const result = new Map<UUID, ProductData>();
@@ -151,6 +199,8 @@ export class ProductManager {
 	/**
 	 * Prefetch products into cache.
 	 * Useful for preloading product data before rendering.
+	 *
+	 * @param productIds - Array of product IDs to prefetch
 	 */
 	async prefetch(productIds: UUID[]): Promise<void> {
 		const missingIds = productIds.filter((id) => !this.isCached(id));
@@ -161,7 +211,9 @@ export class ProductManager {
 	}
 
 	/**
-	 * Clear cache entirely or for a specific product.
+	 * Clear the product cache entirely or for a specific product.
+	 *
+	 * @param productId - Optional product ID to clear (clears all if not provided)
 	 */
 	clearCache(productId?: UUID): void {
 		if (productId) {
@@ -174,7 +226,10 @@ export class ProductManager {
 	}
 
 	/**
-	 * Check if product is in cache and not expired.
+	 * Check if a product is in the cache and not expired.
+	 *
+	 * @param productId - The product ID to check
+	 * @returns True if the product is cached and valid
 	 */
 	isCached(productId: UUID): boolean {
 		const entry = this._cache.get(productId);
@@ -183,7 +238,9 @@ export class ProductManager {
 	}
 
 	/**
-	 * Get cache size (number of cached products).
+	 * Get the current cache size.
+	 *
+	 * @returns Number of cached products (includes expired entries)
 	 */
 	getCacheSize(): number {
 		return this._cache.size;

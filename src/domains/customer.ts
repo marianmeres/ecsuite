@@ -1,5 +1,8 @@
 /**
+ * @module domains/customer
+ *
  * Customer domain manager - read + limited update, no local persistence.
+ * Manages customer profile state with server-side data as source of truth.
  */
 
 import type { CustomerData } from "@marianmeres/collection-types";
@@ -11,6 +14,24 @@ export interface CustomerManagerOptions extends BaseDomainOptions {
 	adapter?: CustomerAdapter;
 }
 
+/**
+ * Customer domain manager - read + limited update, no local persistence.
+ *
+ * Features:
+ * - Server-side data source (no local persistence)
+ * - Profile updates with optimistic updates
+ * - Guest detection
+ * - Profile data helpers
+ *
+ * @example
+ * ```typescript
+ * const customer = new CustomerManager({ adapter: myCustomerAdapter });
+ * await customer.initialize();
+ *
+ * await customer.update({ name: "John Doe" });
+ * console.log(customer.getName()); // "John Doe"
+ * ```
+ */
 export class CustomerManager extends BaseDomainManager<CustomerData, CustomerAdapter> {
 	constructor(options: CustomerManagerOptions = {}) {
 		super("customer", {
@@ -63,7 +84,11 @@ export class CustomerManager extends BaseDomainManager<CustomerData, CustomerAda
 		this._clog.debug("initialize complete");
 	}
 
-	/** Refresh customer data from server */
+	/**
+	 * Refresh customer data from the server.
+	 *
+	 * @emits customer:fetched - On successful fetch
+	 */
 	async refresh(): Promise<void> {
 		this._clog.debug("refresh");
 		if (!this._adapter) {
@@ -98,7 +123,13 @@ export class CustomerManager extends BaseDomainManager<CustomerData, CustomerAda
 		}
 	}
 
-	/** Update customer data with optimistic update */
+	/**
+	 * Update customer data with optimistic update.
+	 * Partial updates are merged with existing data.
+	 *
+	 * @param data - Partial customer data to update
+	 * @emits customer:updated - On successful update
+	 */
 	async update(data: Partial<CustomerData>): Promise<void> {
 		this._clog.debug("update");
 		if (!this._adapter) {
@@ -136,22 +167,38 @@ export class CustomerManager extends BaseDomainManager<CustomerData, CustomerAda
 		);
 	}
 
-	/** Get customer email */
+	/**
+	 * Get the customer's email address.
+	 *
+	 * @returns Email or null if not loaded
+	 */
 	getEmail(): string | null {
 		return this._store.get().data?.email ?? null;
 	}
 
-	/** Get customer name */
+	/**
+	 * Get the customer's name.
+	 *
+	 * @returns Name or null if not loaded
+	 */
 	getName(): string | null {
 		return this._store.get().data?.name ?? null;
 	}
 
-	/** Check if customer is a guest */
+	/**
+	 * Check if the customer is a guest (not logged in).
+	 *
+	 * @returns True if guest, defaults to true if no data
+	 */
 	isGuest(): boolean {
 		return this._store.get().data?.guest ?? true;
 	}
 
-	/** Check if customer has data loaded */
+	/**
+	 * Check if customer data has been loaded.
+	 *
+	 * @returns True if data is available
+	 */
 	hasData(): boolean {
 		return this._store.get().data !== null;
 	}

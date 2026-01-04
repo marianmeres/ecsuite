@@ -1,5 +1,8 @@
 /**
+ * @module types/events
+ *
  * Event type definitions for the ECSuite event system.
+ * Subscribe to these events to react to domain state changes.
  */
 
 import type { UUID } from "@marianmeres/collection-types";

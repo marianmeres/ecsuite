@@ -1,5 +1,8 @@
 /**
+ * @module types/state
+ *
  * Domain state and context type definitions.
+ * Core types for domain state management and data structures.
  */
 
 import type { CartItem, ProductData, UUID } from "@marianmeres/collection-types";

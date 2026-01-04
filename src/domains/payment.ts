@@ -1,5 +1,8 @@
 /**
+ * @module domains/payment
+ *
  * Payment domain manager - read-only, no local persistence.
+ * Manages payment data fetched from the server on demand.
  */
 
 import type { PaymentData, UUID } from "@marianmeres/collection-types";
@@ -16,6 +19,24 @@ export interface PaymentManagerOptions extends BaseDomainOptions {
 	adapter?: PaymentAdapter;
 }
 
+/**
+ * Payment domain manager - read-only, no local persistence.
+ *
+ * Features:
+ * - Server-side data source (no local persistence)
+ * - Fetch payments per order
+ * - Fetch individual payments
+ * - Local cache management
+ *
+ * @example
+ * ```typescript
+ * const payments = new PaymentManager({ adapter: myPaymentAdapter });
+ * await payments.initialize();
+ *
+ * const orderPayments = await payments.fetchForOrder("order-123");
+ * console.log(payments.getPaymentCount());
+ * ```
+ */
 export class PaymentManager extends BaseDomainManager<PaymentListData, PaymentAdapter> {
 	constructor(options: PaymentManagerOptions = {}) {
 		super("payment", {
@@ -40,7 +61,14 @@ export class PaymentManager extends BaseDomainManager<PaymentListData, PaymentAd
 		this._clog.debug("initialize complete");
 	}
 
-	/** Fetch payments for a specific order */
+	/**
+	 * Fetch all payments for a specific order.
+	 * New payments are merged into the local list (avoiding duplicates).
+	 *
+	 * @param orderId - The order ID to fetch payments for
+	 * @returns Array of payments for the order
+	 * @emits payment:fetched - On successful fetch
+	 */
 	async fetchForOrder(orderId: UUID): Promise<PaymentData[]> {
 		this._clog.debug("fetchForOrder", { orderId });
 		if (!this._adapter) {
@@ -85,7 +113,13 @@ export class PaymentManager extends BaseDomainManager<PaymentListData, PaymentAd
 		return [];
 	}
 
-	/** Fetch single payment by ID */
+	/**
+	 * Fetch a single payment by ID.
+	 * Updates or adds the payment to the local list.
+	 *
+	 * @param paymentId - The payment ID to fetch
+	 * @returns The payment or null on error
+	 */
 	async fetchOne(paymentId: UUID): Promise<PaymentData | null> {
 		this._clog.debug("fetchOne", { paymentId });
 		if (!this._adapter) {
@@ -131,24 +165,39 @@ export class PaymentManager extends BaseDomainManager<PaymentListData, PaymentAd
 		return null;
 	}
 
-	/** Get payment count */
+	/**
+	 * Get the total number of fetched payments.
+	 *
+	 * @returns Total payment count
+	 */
 	getPaymentCount(): number {
 		return this._store.get().data?.payments.length ?? 0;
 	}
 
-	/** Get all fetched payments */
+	/**
+	 * Get all fetched payments.
+	 *
+	 * @returns Array of payments
+	 */
 	getPayments(): PaymentData[] {
 		return this._store.get().data?.payments ?? [];
 	}
 
-	/** Get payment by provider reference */
+	/**
+	 * Get a payment by its provider reference.
+	 *
+	 * @param providerReference - The payment provider reference
+	 * @returns The payment or undefined if not found
+	 */
 	getPaymentByRef(providerReference: string): PaymentData | undefined {
 		return this._store.get().data?.payments.find(
 			(p) => p.provider_reference === providerReference
 		);
 	}
 
-	/** Clear local payment cache */
+	/**
+	 * Clear the local payment cache.
+	 */
 	clearCache(): void {
 		this._setData({ payments: [] });
 	}

@@ -1,5 +1,9 @@
 # @marianmeres/ecsuite
 
+[![NPM Version](https://img.shields.io/npm/v/@marianmeres/ecsuite)](https://www.npmjs.com/package/@marianmeres/ecsuite)
+[![JSR Version](https://img.shields.io/jsr/v/@marianmeres/ecsuite)](https://jsr.io/@marianmeres/ecsuite)
+[![License](https://img.shields.io/github/license/marianmeres/ecsuite)](LICENSE)
+
 E-commerce frontend UI helper library with optimistic updates, Svelte-compatible stores,
 and adapter-based server sync.
 
@@ -55,13 +59,14 @@ await suite.cart.addItem({ product_id: "prod-1", quantity: 2 });
 
 ## Domains
 
-| Domain   | Persistence  | Operations                      |
-| -------- | ------------ | ------------------------------- |
-| Cart     | localStorage | add, update, remove, clear      |
-| Wishlist | localStorage | add, remove, toggle, clear      |
-| Order    | none         | fetchAll, fetchOne, create      |
-| Customer | none         | fetch, refresh, update          |
+| Domain   | Persistence  | Operations                          |
+| -------- | ------------ | ----------------------------------- |
+| Cart     | localStorage | add, update, remove, clear          |
+| Wishlist | localStorage | add, remove, toggle, clear          |
+| Order    | none         | fetchAll, fetchOne, create          |
+| Customer | none         | fetch, refresh, update              |
 | Payment  | none         | fetchForOrder, fetchOne (read-only) |
+| Product  | cache only   | getById, getByIds, prefetch         |
 
 ## State Machine
 
@@ -81,7 +86,7 @@ initializing → ready ↔ syncing → error
 Implement the adapter interface for your backend:
 
 ```typescript
-import type { CartAdapter, AdapterResult, CartData } from "@marianmeres/ecsuite";
+import type { CartAdapter } from "@marianmeres/ecsuite";
 
 const myCartAdapter: CartAdapter = {
 	async fetch(ctx) {
@@ -110,10 +115,10 @@ const suite = createECSuite({
 	adapters: {
 		cart: createMockCartAdapter({
 			initialData: { items: [{ product_id: "p1", quantity: 2 }] },
-			delay: 100, // Simulate network delay
+			delay: 100,
 		}),
 	},
-	storage: { type: "memory" }, // Use memory storage for tests
+	storage: { type: "memory" },
 });
 ```
 
@@ -122,29 +127,22 @@ const suite = createECSuite({
 Subscribe to domain events:
 
 ```typescript
-// Specific event
 suite.on("cart:item:added", (event) => {
 	console.log(`Added ${event.quantity} of ${event.productId}`);
 });
 
-// All events
 suite.onAny(({ event, data }) => {
 	console.log(event, data);
 });
 
-// One-time subscription
 suite.once("order:created", (event) => {
 	redirectToConfirmation(event.orderId);
 });
 ```
 
-Available events:
-- `domain:state:changed`, `domain:error`, `domain:synced`
-- `cart:item:added`, `cart:item:updated`, `cart:item:removed`, `cart:cleared`
-- `wishlist:item:added`, `wishlist:item:removed`, `wishlist:cleared`
-- `order:created`, `order:fetched`
-- `customer:updated`, `customer:fetched`
-- `payment:fetched`
+## API Reference
+
+For complete API documentation, see [API.md](API.md).
 
 ## License
 

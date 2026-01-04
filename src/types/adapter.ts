@@ -1,5 +1,8 @@
 /**
+ * @module types/adapter
+ *
  * Adapter interface definitions for server communication.
+ * Implement these interfaces to connect ECSuite to your backend.
  */
 
 import type {

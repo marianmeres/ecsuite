@@ -1,5 +1,8 @@
 /**
- * Domain manager exports
+ * @module domains
+ *
+ * Domain manager exports.
+ * Re-exports all domain manager classes for advanced usage.
  */
 
 export { BaseDomainManager, type BaseDomainOptions, type StorageType } from "./base.ts";

@@ -1,5 +1,8 @@
 /**
+ * @module domains/cart
+ *
  * Cart domain manager with optimistic updates and localStorage persistence.
+ * Manages shopping cart state with automatic server synchronization.
  */
 
 import type { CartData, CartItem, UUID } from "@marianmeres/collection-types";
@@ -13,6 +16,24 @@ export interface CartManagerOptions extends BaseDomainOptions {
 	adapter?: CartAdapter;
 }
 
+/**
+ * Cart domain manager with optimistic updates and localStorage persistence.
+ *
+ * Features:
+ * - Automatic localStorage persistence (configurable)
+ * - Optimistic updates with automatic rollback on server error
+ * - Server synchronization via CartAdapter
+ * - Enriched items with product data support
+ *
+ * @example
+ * ```typescript
+ * const cart = new CartManager({ adapter: myCartAdapter });
+ * await cart.initialize();
+ *
+ * await cart.addItem({ product_id: "prod-1", quantity: 2 });
+ * console.log(cart.getItemCount()); // 2
+ * ```
+ */
 export class CartManager extends BaseDomainManager<CartData, CartAdapter> {
 	constructor(options: CartManagerOptions = {}) {
 		super("cart", {
@@ -71,7 +92,13 @@ export class CartManager extends BaseDomainManager<CartData, CartAdapter> {
 		this._clog.debug("initialize complete", { itemCount: this.getItemCount() });
 	}
 
-	/** Add item to cart with optimistic update */
+	/**
+	 * Add item to cart with optimistic update.
+	 * If the product already exists, its quantity is incremented.
+	 *
+	 * @param item - The cart item to add (product_id and quantity required)
+	 * @emits cart:item:added - On successful addition
+	 */
 	async addItem(item: CartItem): Promise<void> {
 		this._clog.debug("addItem", { productId: item.product_id, quantity: item.quantity });
 		await this._withOptimisticUpdate(
@@ -125,7 +152,14 @@ export class CartManager extends BaseDomainManager<CartData, CartAdapter> {
 		);
 	}
 
-	/** Update item quantity */
+	/**
+	 * Update the quantity of an item in the cart.
+	 * If quantity is 0 or less, the item is removed.
+	 *
+	 * @param productId - The product ID to update
+	 * @param quantity - The new quantity (removes item if <= 0)
+	 * @emits cart:item:updated - On successful update
+	 */
 	async updateItemQuantity(productId: UUID, quantity: number): Promise<void> {
 		this._clog.debug("updateItemQuantity", { productId, quantity });
 		if (quantity <= 0) {
@@ -175,7 +209,12 @@ export class CartManager extends BaseDomainManager<CartData, CartAdapter> {
 		);
 	}
 
-	/** Remove item from cart */
+	/**
+	 * Remove an item from the cart.
+	 *
+	 * @param productId - The product ID to remove
+	 * @emits cart:item:removed - On successful removal
+	 */
 	async removeItem(productId: UUID): Promise<void> {
 		this._clog.debug("removeItem", { productId });
 		await this._withOptimisticUpdate(
@@ -209,7 +248,11 @@ export class CartManager extends BaseDomainManager<CartData, CartAdapter> {
 		);
 	}
 
-	/** Clear cart */
+	/**
+	 * Clear all items from the cart.
+	 *
+	 * @emits cart:cleared - On successful clear
+	 */
 	async clear(): Promise<void> {
 		this._clog.debug("clear");
 		await this._withOptimisticUpdate(
@@ -237,25 +280,45 @@ export class CartManager extends BaseDomainManager<CartData, CartAdapter> {
 		);
 	}
 
-	/** Get total item count */
+	/**
+	 * Get the total number of items in the cart (sum of all quantities).
+	 *
+	 * @returns Total item count
+	 */
 	getItemCount(): number {
 		const data = this._store.get().data;
 		return data?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
 	}
 
-	/** Check if product is in cart */
+	/**
+	 * Check if a product is in the cart.
+	 *
+	 * @param productId - The product ID to check
+	 * @returns True if the product is in the cart
+	 */
 	hasProduct(productId: UUID): boolean {
 		const data = this._store.get().data;
 		return data?.items.some((i) => i.product_id === productId) ?? false;
 	}
 
-	/** Get item by product ID */
+	/**
+	 * Get a cart item by product ID.
+	 *
+	 * @param productId - The product ID to find
+	 * @returns The cart item or undefined if not found
+	 */
 	getItem(productId: UUID): CartItem | undefined {
 		const data = this._store.get().data;
 		return data?.items.find((i) => i.product_id === productId);
 	}
 
-	/** Get cart items enriched with product data */
+	/**
+	 * Get cart items enriched with product data.
+	 * Fetches product details and calculates line totals.
+	 *
+	 * @param productManager - The ProductManager to fetch product data from
+	 * @returns Array of enriched cart items with product data and line totals
+	 */
 	async getEnrichedItems(productManager: ProductManager): Promise<EnrichedCartItem[]> {
 		const data = this._store.get().data;
 		if (!data?.items.length) return [];

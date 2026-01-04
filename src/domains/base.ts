@@ -1,9 +1,16 @@
 /**
+ * @module domains/base
+ *
  * Base domain manager providing shared functionality for all domain managers.
+ * Implements reactive state management, optimistic updates, and event emission.
  */
 
 import { createClog, type Clog } from "@marianmeres/clog";
-import { createStore, createStoragePersistor, type StoreLike } from "@marianmeres/store";
+import {
+	createStore,
+	createStoragePersistor,
+	type StoreLike,
+} from "@marianmeres/store";
 import { createPubSub, type PubSub } from "@marianmeres/pubsub";
 import type {
 	DomainContext,
@@ -28,7 +35,19 @@ export interface BaseDomainOptions {
 	pubsub?: PubSub;
 }
 
-/** Base domain manager abstract class */
+/**
+ * Abstract base class for domain managers providing shared functionality.
+ *
+ * Implements:
+ * - Reactive store with Svelte-compatible `subscribe()` method
+ * - State machine transitions (initializing → ready ↔ syncing → error)
+ * - Optimistic update pattern with automatic rollback
+ * - Event emission via pub/sub
+ * - Optional persistence (localStorage, sessionStorage, memory)
+ *
+ * @typeParam TData - The domain data type
+ * @typeParam TAdapter - The adapter interface type for server communication
+ */
 export abstract class BaseDomainManager<TData, TAdapter> {
 	protected readonly _store: StoreLike<DomainStateWrapper<TData>>;
 	protected readonly _pubsub: PubSub;
@@ -102,7 +121,10 @@ export abstract class BaseDomainManager<TData, TAdapter> {
 	protected _setState(state: DomainState): void {
 		const current = this._store.get();
 		if (current.state !== state) {
-			this._clog.debug("state change", { from: current.state, to: state });
+			this._clog.debug("state change", {
+				from: current.state,
+				to: state,
+			});
 			this._store.update((s) => ({ ...s, state }));
 			this._emit({
 				type: "domain:state:changed",
@@ -126,7 +148,11 @@ export abstract class BaseDomainManager<TData, TAdapter> {
 
 	/** Set error state */
 	protected _setError(error: DomainError): void {
-		this._clog.error("error", { code: error.code, message: error.message, operation: error.operation });
+		this._clog.error("error", {
+			code: error.code,
+			message: error.message,
+			operation: error.operation,
+		});
 		this._store.update((s) => ({
 			...s,
 			state: "error",

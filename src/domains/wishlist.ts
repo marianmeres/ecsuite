@@ -1,5 +1,8 @@
 /**
+ * @module domains/wishlist
+ *
  * Wishlist domain manager with optimistic updates and localStorage persistence.
+ * Manages wishlist state with automatic server synchronization.
  */
 
 import type { UUID } from "@marianmeres/collection-types";
@@ -13,6 +16,25 @@ export interface WishlistManagerOptions extends BaseDomainOptions {
 	adapter?: WishlistAdapter;
 }
 
+/**
+ * Wishlist domain manager with optimistic updates and localStorage persistence.
+ *
+ * Features:
+ * - Automatic localStorage persistence (configurable)
+ * - Optimistic updates with automatic rollback on server error
+ * - Server synchronization via WishlistAdapter
+ * - Toggle functionality for easy add/remove
+ * - Enriched items with product data support
+ *
+ * @example
+ * ```typescript
+ * const wishlist = new WishlistManager({ adapter: myWishlistAdapter });
+ * await wishlist.initialize();
+ *
+ * await wishlist.toggleItem("prod-1"); // Adds item
+ * await wishlist.toggleItem("prod-1"); // Removes item
+ * ```
+ */
 export class WishlistManager extends BaseDomainManager<WishlistData, WishlistAdapter> {
 	constructor(options: WishlistManagerOptions = {}) {
 		super("wishlist", {
@@ -70,7 +92,13 @@ export class WishlistManager extends BaseDomainManager<WishlistData, WishlistAda
 		this._clog.debug("initialize complete", { itemCount: this.getItemCount() });
 	}
 
-	/** Add item to wishlist with optimistic update */
+	/**
+	 * Add a product to the wishlist.
+	 * No-op if the product is already in the wishlist.
+	 *
+	 * @param productId - The product ID to add
+	 * @emits wishlist:item:added - On successful addition
+	 */
 	async addItem(productId: UUID): Promise<void> {
 		this._clog.debug("addItem", { productId });
 		// Check if already in wishlist
@@ -114,7 +142,12 @@ export class WishlistManager extends BaseDomainManager<WishlistData, WishlistAda
 		);
 	}
 
-	/** Remove item from wishlist */
+	/**
+	 * Remove a product from the wishlist.
+	 *
+	 * @param productId - The product ID to remove
+	 * @emits wishlist:item:removed - On successful removal
+	 */
 	async removeItem(productId: UUID): Promise<void> {
 		this._clog.debug("removeItem", { productId });
 		await this._withOptimisticUpdate(
@@ -148,7 +181,13 @@ export class WishlistManager extends BaseDomainManager<WishlistData, WishlistAda
 		);
 	}
 
-	/** Toggle item in wishlist (add if not present, remove if present) */
+	/**
+	 * Toggle a product in the wishlist.
+	 * Adds the product if not present, removes it if present.
+	 *
+	 * @param productId - The product ID to toggle
+	 * @returns True if the item was added, false if removed
+	 */
 	async toggleItem(productId: UUID): Promise<boolean> {
 		this._clog.debug("toggleItem", { productId });
 		if (this.hasProduct(productId)) {
@@ -160,7 +199,11 @@ export class WishlistManager extends BaseDomainManager<WishlistData, WishlistAda
 		}
 	}
 
-	/** Clear wishlist */
+	/**
+	 * Clear all items from the wishlist.
+	 *
+	 * @emits wishlist:cleared - On successful clear
+	 */
 	async clear(): Promise<void> {
 		this._clog.debug("clear");
 		await this._withOptimisticUpdate(
@@ -188,31 +231,54 @@ export class WishlistManager extends BaseDomainManager<WishlistData, WishlistAda
 		);
 	}
 
-	/** Get total item count */
+	/**
+	 * Get the total number of items in the wishlist.
+	 *
+	 * @returns Total item count
+	 */
 	getItemCount(): number {
 		const data = this._store.get().data;
 		return data?.items.length ?? 0;
 	}
 
-	/** Check if product is in wishlist */
+	/**
+	 * Check if a product is in the wishlist.
+	 *
+	 * @param productId - The product ID to check
+	 * @returns True if the product is in the wishlist
+	 */
 	hasProduct(productId: UUID): boolean {
 		const data = this._store.get().data;
 		return data?.items.some((i) => i.product_id === productId) ?? false;
 	}
 
-	/** Get item by product ID */
+	/**
+	 * Get a wishlist item by product ID.
+	 *
+	 * @param productId - The product ID to find
+	 * @returns The wishlist item or undefined if not found
+	 */
 	getItem(productId: UUID): WishlistItem | undefined {
 		const data = this._store.get().data;
 		return data?.items.find((i) => i.product_id === productId);
 	}
 
-	/** Get all product IDs in wishlist */
+	/**
+	 * Get all product IDs in the wishlist.
+	 *
+	 * @returns Array of product IDs
+	 */
 	getProductIds(): UUID[] {
 		const data = this._store.get().data;
 		return data?.items.map((i) => i.product_id) ?? [];
 	}
 
-	/** Get wishlist items enriched with product data */
+	/**
+	 * Get wishlist items enriched with product data.
+	 *
+	 * @param productManager - The ProductManager to fetch product data from
+	 * @returns Array of enriched wishlist items with product data
+	 */
 	async getEnrichedItems(productManager: ProductManager): Promise<EnrichedWishlistItem[]> {
 		const data = this._store.get().data;
 		if (!data?.items.length) return [];

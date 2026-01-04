@@ -1,5 +1,8 @@
 /**
+ * @module domains/order
+ *
  * Order domain manager - read + create only, no local persistence.
+ * Manages order state with server-side data as source of truth.
  */
 
 import type { OrderData, UUID } from "@marianmeres/collection-types";
@@ -16,6 +19,24 @@ export interface OrderManagerOptions extends BaseDomainOptions {
 	adapter?: OrderAdapter;
 }
 
+/**
+ * Order domain manager - read + create only, no local persistence.
+ *
+ * Features:
+ * - Server-side data source (no local persistence)
+ * - Fetch all orders or individual orders
+ * - Create new orders
+ * - Order list management
+ *
+ * @example
+ * ```typescript
+ * const orders = new OrderManager({ adapter: myOrderAdapter });
+ * await orders.initialize();
+ *
+ * const newOrder = await orders.create({ items: [...], total: 100 });
+ * console.log(orders.getOrderCount());
+ * ```
+ */
 export class OrderManager extends BaseDomainManager<OrderListData, OrderAdapter> {
 	constructor(options: OrderManagerOptions = {}) {
 		super("order", {
@@ -64,7 +85,12 @@ export class OrderManager extends BaseDomainManager<OrderListData, OrderAdapter>
 		this._clog.debug("initialize complete", { orderCount: this.getOrderCount() });
 	}
 
-	/** Fetch all orders (refresh) */
+	/**
+	 * Fetch all orders from the server.
+	 * Replaces the current order list with server data.
+	 *
+	 * @emits order:fetched - On successful fetch
+	 */
 	async fetchAll(): Promise<void> {
 		this._clog.debug("fetchAll");
 		if (!this._adapter) {
@@ -99,7 +125,13 @@ export class OrderManager extends BaseDomainManager<OrderListData, OrderAdapter>
 		}
 	}
 
-	/** Fetch single order by ID */
+	/**
+	 * Fetch a single order by ID from the server.
+	 * Updates or adds the order to the local list.
+	 *
+	 * @param orderId - The order ID to fetch
+	 * @returns The fetched order or null on error
+	 */
 	async fetchOne(orderId: UUID): Promise<OrderData | null> {
 		this._clog.debug("fetchOne", { orderId });
 		if (!this._adapter) {
@@ -145,7 +177,14 @@ export class OrderManager extends BaseDomainManager<OrderListData, OrderAdapter>
 		return null;
 	}
 
-	/** Create a new order */
+	/**
+	 * Create a new order.
+	 * The order status is assigned by the server.
+	 *
+	 * @param orderData - The order data (without status)
+	 * @returns The created order or null on error
+	 * @emits order:created - On successful creation
+	 */
 	async create(orderData: OrderCreatePayload): Promise<OrderData | null> {
 		this._clog.debug("create");
 		if (!this._adapter) {
@@ -185,17 +224,30 @@ export class OrderManager extends BaseDomainManager<OrderListData, OrderAdapter>
 		return null;
 	}
 
-	/** Get order count */
+	/**
+	 * Get the total number of orders.
+	 *
+	 * @returns Total order count
+	 */
 	getOrderCount(): number {
 		return this._store.get().data?.orders.length ?? 0;
 	}
 
-	/** Get all orders */
+	/**
+	 * Get all orders.
+	 *
+	 * @returns Array of orders
+	 */
 	getOrders(): OrderData[] {
 		return this._store.get().data?.orders ?? [];
 	}
 
-	/** Get order by index */
+	/**
+	 * Get an order by its index in the list.
+	 *
+	 * @param index - The index in the orders array
+	 * @returns The order or undefined if index is out of bounds
+	 */
 	getOrderByIndex(index: number): OrderData | undefined {
 		return this._store.get().data?.orders[index];
 	}
