@@ -88,7 +88,7 @@ export abstract class BaseDomainManager<TData, TAdapter> {
 	}
 
 	/** Get the Svelte-compatible subscribe method */
-	get subscribe() {
+	get subscribe(): StoreLike<DomainStateWrapper<TData>>["subscribe"] {
 		return this._store.subscribe;
 	}
 
