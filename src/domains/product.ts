@@ -132,13 +132,10 @@ export class ProductManager {
 
 		this._clog.debug("getById: fetching", { productId });
 		try {
-			const result = await this._adapter.fetchOne(productId, this._context);
-			if (result.success && result.data) {
-				this._setCache(productId, result.data);
-				this._emitFetched(productId);
-				return result.data;
-			}
-			return null;
+			const data = await this._adapter.fetchOne(productId, this._context);
+			this._setCache(productId, data);
+			this._emitFetched(productId);
+			return data;
 		} catch (e) {
 			this._clog.error("getById failed", { productId, error: e });
 			return null;
@@ -176,16 +173,14 @@ export class ProductManager {
 			});
 
 			try {
-				const fetchResult = await this._adapter.fetchMany(missingIds, this._context);
-				if (fetchResult.success && fetchResult.data) {
-					for (const product of fetchResult.data) {
-						// Products from collection-types have model_id
-						const productId = (product as ProductData & { model_id?: UUID }).model_id;
-						if (productId) {
-							this._setCache(productId, product);
-							result.set(productId, product);
-							this._emitFetched(productId);
-						}
+				const fetchedData = await this._adapter.fetchMany(missingIds, this._context);
+				for (const product of fetchedData) {
+					// Products from collection-types have model_id
+					const productId = (product as ProductData & { model_id?: UUID }).model_id;
+					if (productId) {
+						this._setCache(productId, product);
+						result.set(productId, product);
+						this._emitFetched(productId);
 					}
 				}
 			} catch (e) {

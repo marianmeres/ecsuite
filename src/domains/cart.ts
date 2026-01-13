@@ -62,18 +62,9 @@ export class CartManager extends BaseDomainManager<CartData, CartAdapter> {
 		if (this._adapter) {
 			this._setState("syncing");
 			try {
-				const result = await this._adapter.fetch(this._context);
-				if (result.success && result.data) {
-					this._setData(result.data);
-					this._markSynced();
-				} else if (result.error) {
-					// Keep local data but mark error
-					this._setError({
-						code: result.error.code,
-						message: result.error.message,
-						operation: "initialize",
-					});
-				}
+				const data = await this._adapter.fetch(this._context);
+				this._setData(data);
+				this._markSynced();
 			} catch (e) {
 				this._setError({
 					code: "FETCH_FAILED",
@@ -128,11 +119,7 @@ export class CartManager extends BaseDomainManager<CartData, CartAdapter> {
 			async () => {
 				// Server sync
 				if (this._adapter) {
-					const result = await this._adapter.addItem(item, this._context);
-					if (!result.success) {
-						throw new Error(result.error?.message ?? "Failed to add item");
-					}
-					return result.data;
+					return await this._adapter.addItem(item, this._context);
 				}
 				return this._store.get().data;
 			},
@@ -181,15 +168,7 @@ export class CartManager extends BaseDomainManager<CartData, CartAdapter> {
 			},
 			async () => {
 				if (this._adapter) {
-					const result = await this._adapter.updateItem(
-						productId,
-						quantity,
-						this._context
-					);
-					if (!result.success) {
-						throw new Error(result.error?.message ?? "Failed to update item");
-					}
-					return result.data;
+					return await this._adapter.updateItem(productId, quantity, this._context);
 				}
 				return this._store.get().data;
 			},
@@ -226,11 +205,7 @@ export class CartManager extends BaseDomainManager<CartData, CartAdapter> {
 			},
 			async () => {
 				if (this._adapter) {
-					const result = await this._adapter.removeItem(productId, this._context);
-					if (!result.success) {
-						throw new Error(result.error?.message ?? "Failed to remove item");
-					}
-					return result.data;
+					return await this._adapter.removeItem(productId, this._context);
 				}
 				return this._store.get().data;
 			},
@@ -262,11 +237,7 @@ export class CartManager extends BaseDomainManager<CartData, CartAdapter> {
 			},
 			async () => {
 				if (this._adapter) {
-					const result = await this._adapter.clear(this._context);
-					if (!result.success) {
-						throw new Error(result.error?.message ?? "Failed to clear cart");
-					}
-					return result.data;
+					return await this._adapter.clear(this._context);
 				}
 				return { items: [] };
 			},

@@ -57,22 +57,14 @@ export class CustomerManager extends BaseDomainManager<CustomerData, CustomerAda
 
 		this._setState("syncing");
 		try {
-			const result = await this._adapter.fetch(this._context);
-			if (result.success && result.data) {
-				this._setData(result.data);
-				this._markSynced();
-				this._emit({
-					type: "customer:fetched",
-					domain: "customer",
-					timestamp: Date.now(),
-				});
-			} else if (result.error) {
-				this._setError({
-					code: result.error.code,
-					message: result.error.message,
-					operation: "initialize",
-				});
-			}
+			const data = await this._adapter.fetch(this._context);
+			this._setData(data);
+			this._markSynced();
+			this._emit({
+				type: "customer:fetched",
+				domain: "customer",
+				timestamp: Date.now(),
+			});
 		} catch (e) {
 			this._setError({
 				code: "FETCH_FAILED",
@@ -97,22 +89,14 @@ export class CustomerManager extends BaseDomainManager<CustomerData, CustomerAda
 
 		this._setState("syncing");
 		try {
-			const result = await this._adapter.fetch(this._context);
-			if (result.success && result.data) {
-				this._setData(result.data);
-				this._markSynced();
-				this._emit({
-					type: "customer:fetched",
-					domain: "customer",
-					timestamp: Date.now(),
-				});
-			} else if (result.error) {
-				this._setError({
-					code: result.error.code,
-					message: result.error.message,
-					operation: "refresh",
-				});
-			}
+			const data = await this._adapter.fetch(this._context);
+			this._setData(data);
+			this._markSynced();
+			this._emit({
+				type: "customer:fetched",
+				domain: "customer",
+				timestamp: Date.now(),
+			});
 		} catch (e) {
 			this._setError({
 				code: "FETCH_FAILED",
@@ -148,11 +132,7 @@ export class CustomerManager extends BaseDomainManager<CustomerData, CustomerAda
 				this._setData({ ...current, ...data }, false);
 			},
 			async () => {
-				const result = await this._adapter!.update(data, this._context);
-				if (!result.success) {
-					throw new Error(result.error?.message ?? "Failed to update customer");
-				}
-				return result.data;
+				return await this._adapter!.update(data, this._context);
 			},
 			(serverData) => {
 				if (serverData) {

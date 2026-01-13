@@ -3,7 +3,8 @@
  */
 
 import type { ProductData, UUID } from "@marianmeres/collection-types";
-import type { AdapterResult, ProductAdapter } from "../../types/adapter.ts";
+import { HTTP_ERROR } from "@marianmeres/http-utils";
+import type { ProductAdapter } from "../../types/adapter.ts";
 import type { DomainContext } from "../../types/state.ts";
 
 /** Product with model_id for internal storage */
@@ -41,51 +42,30 @@ export function createMockProductAdapter(
 
 	const wait = () => new Promise<void>((r) => setTimeout(r, delay));
 
-	const maybeError = (
-		operation: string
-	): AdapterResult<ProductData> | AdapterResult<ProductData[]> | null => {
+	const maybeThrow = (operation: string): void => {
 		if (options.forceError?.operation === operation) {
-			return {
-				success: false,
-				error: {
-					code: options.forceError.code ?? "MOCK_ERROR",
-					message: options.forceError.message ?? `Mock error for ${operation}`,
-				},
-			};
+			throw new HTTP_ERROR.BadRequest(
+				options.forceError.message ?? `Mock error for ${operation}`
+			);
 		}
-		return null;
 	};
 
 	return {
-		async fetchOne(
-			productId: UUID,
-			_ctx: DomainContext
-		): Promise<AdapterResult<ProductData>> {
+		async fetchOne(productId: UUID, _ctx: DomainContext): Promise<ProductData> {
 			await wait();
-			const error = maybeError("fetchOne");
-			if (error) return error as AdapterResult<ProductData>;
+			maybeThrow("fetchOne");
 
 			const product = products.get(productId);
 			if (!product) {
-				return {
-					success: false,
-					error: {
-						code: "NOT_FOUND",
-						message: `Product not found: ${productId}`,
-					},
-				};
+				throw new HTTP_ERROR.NotFound(`Product not found: ${productId}`);
 			}
 
-			return { success: true, data: structuredClone(product) };
+			return structuredClone(product);
 		},
 
-		async fetchMany(
-			productIds: UUID[],
-			_ctx: DomainContext
-		): Promise<AdapterResult<ProductData[]>> {
+		async fetchMany(productIds: UUID[], _ctx: DomainContext): Promise<ProductData[]> {
 			await wait();
-			const error = maybeError("fetchMany");
-			if (error) return error as AdapterResult<ProductData[]>;
+			maybeThrow("fetchMany");
 
 			const found: StoredProduct[] = [];
 			for (const id of productIds) {
@@ -95,7 +75,7 @@ export function createMockProductAdapter(
 				}
 			}
 
-			return { success: true, data: found };
+			return found;
 		},
 	};
 }

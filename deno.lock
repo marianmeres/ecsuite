@@ -5,6 +5,7 @@
     "jsr:@marianmeres/clog@^3.10.0": "3.15.0",
     "jsr:@marianmeres/clog@^3.15.0": "3.15.0",
     "jsr:@marianmeres/collection-types@^1.9.0": "1.10.0",
+    "jsr:@marianmeres/http-utils@^2.5.1": "2.5.1",
     "jsr:@marianmeres/npmbuild@1": "1.10.0",
     "jsr:@marianmeres/pubsub@^2.4.4": "2.4.5",
     "jsr:@marianmeres/pubsub@^2.4.5": "2.4.5",
@@ -33,6 +34,9 @@
     },
     "@marianmeres/collection-types@1.10.0": {
       "integrity": "c13061b1705fb8fcc86523766268b55cd9bfd7d75807bfdcd1ef78933176ae94"
+    },
+    "@marianmeres/http-utils@2.5.1": {
+      "integrity": "dedae4266d9ac978971e984e59ee6c7c40cab46bb77d9f7fdc42658a0c05936a"
     },
     "@marianmeres/npmbuild@1.10.0": {
       "integrity": "eb45240930dbdf7b870af50a99496adf2e98683e25d57c4a0864387760e05e69",
@@ -81,6 +85,7 @@
     "dependencies": [
       "jsr:@marianmeres/clog@^3.15.0",
       "jsr:@marianmeres/collection-types@^1.9.0",
+      "jsr:@marianmeres/http-utils@^2.5.1",
       "jsr:@marianmeres/npmbuild@1",
       "jsr:@marianmeres/pubsub@^2.4.5",
       "jsr:@marianmeres/store@^2.4.2",

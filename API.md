@@ -634,31 +634,18 @@ clearCache(productId?: UUID): void
 
 ## Adapter Interfaces
 
-### AdapterResult<T>
-
-All adapter methods return this result type:
-
-```typescript
-interface AdapterResult<T> {
-  success: boolean;
-  data?: T;
-  error?: {
-    code: string;
-    message: string;
-  };
-}
-```
+Adapters return data directly on success and throw `HTTP_ERROR` from `@marianmeres/http-utils` on failure.
 
 ### CartAdapter
 
 ```typescript
 interface CartAdapter {
-  fetch(ctx: DomainContext): Promise<AdapterResult<CartData>>;
-  addItem(item: CartItem, ctx: DomainContext): Promise<AdapterResult<CartData>>;
-  updateItem(productId: UUID, quantity: number, ctx: DomainContext): Promise<AdapterResult<CartData>>;
-  removeItem(productId: UUID, ctx: DomainContext): Promise<AdapterResult<CartData>>;
-  clear(ctx: DomainContext): Promise<AdapterResult<CartData>>;
-  sync(cart: CartData, ctx: DomainContext): Promise<AdapterResult<CartData>>;
+  fetch(ctx: DomainContext): Promise<CartData>;
+  addItem(item: CartItem, ctx: DomainContext): Promise<CartData>;
+  updateItem(productId: UUID, quantity: number, ctx: DomainContext): Promise<CartData>;
+  removeItem(productId: UUID, ctx: DomainContext): Promise<CartData>;
+  clear(ctx: DomainContext): Promise<CartData>;
+  sync(cart: CartData, ctx: DomainContext): Promise<CartData>;
 }
 ```
 
@@ -666,11 +653,11 @@ interface CartAdapter {
 
 ```typescript
 interface WishlistAdapter {
-  fetch(ctx: DomainContext): Promise<AdapterResult<WishlistData>>;
-  addItem(productId: UUID, ctx: DomainContext): Promise<AdapterResult<WishlistData>>;
-  removeItem(productId: UUID, ctx: DomainContext): Promise<AdapterResult<WishlistData>>;
-  clear(ctx: DomainContext): Promise<AdapterResult<WishlistData>>;
-  sync(wishlist: WishlistData, ctx: DomainContext): Promise<AdapterResult<WishlistData>>;
+  fetch(ctx: DomainContext): Promise<WishlistData>;
+  addItem(productId: UUID, ctx: DomainContext): Promise<WishlistData>;
+  removeItem(productId: UUID, ctx: DomainContext): Promise<WishlistData>;
+  clear(ctx: DomainContext): Promise<WishlistData>;
+  sync(wishlist: WishlistData, ctx: DomainContext): Promise<WishlistData>;
 }
 ```
 
@@ -678,9 +665,9 @@ interface WishlistAdapter {
 
 ```typescript
 interface OrderAdapter {
-  fetchAll(ctx: DomainContext): Promise<AdapterResult<OrderData[]>>;
-  fetchOne(orderId: UUID, ctx: DomainContext): Promise<AdapterResult<OrderData>>;
-  create(order: OrderCreatePayload, ctx: DomainContext): Promise<AdapterResult<OrderData>>;
+  fetchAll(ctx: DomainContext): Promise<OrderData[]>;
+  fetchOne(orderId: UUID, ctx: DomainContext): Promise<OrderData>;
+  create(order: OrderCreatePayload, ctx: DomainContext): Promise<OrderData>;
 }
 ```
 
@@ -688,8 +675,8 @@ interface OrderAdapter {
 
 ```typescript
 interface CustomerAdapter {
-  fetch(ctx: DomainContext): Promise<AdapterResult<CustomerData>>;
-  update(data: Partial<CustomerData>, ctx: DomainContext): Promise<AdapterResult<CustomerData>>;
+  fetch(ctx: DomainContext): Promise<CustomerData>;
+  update(data: Partial<CustomerData>, ctx: DomainContext): Promise<CustomerData>;
 }
 ```
 
@@ -697,8 +684,8 @@ interface CustomerAdapter {
 
 ```typescript
 interface PaymentAdapter {
-  fetchForOrder(orderId: UUID, ctx: DomainContext): Promise<AdapterResult<PaymentData[]>>;
-  fetchOne(paymentId: UUID, ctx: DomainContext): Promise<AdapterResult<PaymentData>>;
+  fetchForOrder(orderId: UUID, ctx: DomainContext): Promise<PaymentData[]>;
+  fetchOne(paymentId: UUID, ctx: DomainContext): Promise<PaymentData>;
 }
 ```
 
@@ -706,8 +693,23 @@ interface PaymentAdapter {
 
 ```typescript
 interface ProductAdapter {
-  fetchOne(productId: UUID, ctx: DomainContext): Promise<AdapterResult<ProductData>>;
-  fetchMany(productIds: UUID[], ctx: DomainContext): Promise<AdapterResult<ProductData[]>>;
+  fetchOne(productId: UUID, ctx: DomainContext): Promise<ProductData>;
+  fetchMany(productIds: UUID[], ctx: DomainContext): Promise<ProductData[]>;
+}
+```
+
+### Error Handling
+
+Adapters should throw `HTTP_ERROR` on failure:
+
+```typescript
+import { HTTP_ERROR } from "@marianmeres/http-utils";
+
+// In adapter implementation
+if (!res.ok) {
+  if (res.status === 404) throw new HTTP_ERROR.NotFound("Resource not found");
+  if (res.status === 401) throw new HTTP_ERROR.Unauthorized("Not authenticated");
+  throw new HTTP_ERROR.BadRequest("Request failed");
 }
 ```
 

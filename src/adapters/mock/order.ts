@@ -3,11 +3,8 @@
  */
 
 import type { OrderData, UUID } from "@marianmeres/collection-types";
-import type {
-	AdapterResult,
-	OrderAdapter,
-	OrderCreatePayload,
-} from "../../types/adapter.ts";
+import { HTTP_ERROR } from "@marianmeres/http-utils";
+import type { OrderAdapter, OrderCreatePayload } from "../../types/adapter.ts";
 import type { DomainContext } from "../../types/state.ts";
 
 /** Mock order adapter options */
@@ -40,56 +37,36 @@ export function createMockOrderAdapter(
 
 	const wait = () => new Promise<void>((r) => setTimeout(r, delay));
 
-	const maybeError = <T>(operation: string): AdapterResult<T> | null => {
+	const maybeThrow = (operation: string): void => {
 		if (options.forceError?.operation === operation) {
-			return {
-				success: false,
-				error: {
-					code: options.forceError.code ?? "MOCK_ERROR",
-					message: options.forceError.message ?? `Mock error for ${operation}`,
-				},
-			};
+			throw new HTTP_ERROR.BadRequest(
+				options.forceError.message ?? `Mock error for ${operation}`
+			);
 		}
-		return null;
 	};
 
 	return {
-		async fetchAll(_ctx: DomainContext): Promise<AdapterResult<OrderData[]>> {
+		async fetchAll(_ctx: DomainContext): Promise<OrderData[]> {
 			await wait();
-			const error = maybeError<OrderData[]>("fetchAll");
-			if (error) return error;
-			return { success: true, data: structuredClone(orders) };
+			maybeThrow("fetchAll");
+			return structuredClone(orders);
 		},
 
-		async fetchOne(
-			orderId: UUID,
-			_ctx: DomainContext
-		): Promise<AdapterResult<OrderData>> {
+		async fetchOne(orderId: UUID, _ctx: DomainContext): Promise<OrderData> {
 			await wait();
-			const error = maybeError<OrderData>("fetchOne");
-			if (error) return error;
+			maybeThrow("fetchOne");
 
 			const order = orders.find((o) => o.model_id === orderId);
 			if (!order) {
-				return {
-					success: false,
-					error: {
-						code: "NOT_FOUND",
-						message: `Order ${orderId} not found`,
-					},
-				};
+				throw new HTTP_ERROR.NotFound(`Order ${orderId} not found`);
 			}
 
-			return { success: true, data: structuredClone(order) };
+			return structuredClone(order);
 		},
 
-		async create(
-			orderData: OrderCreatePayload,
-			_ctx: DomainContext
-		): Promise<AdapterResult<OrderData>> {
+		async create(orderData: OrderCreatePayload, _ctx: DomainContext): Promise<OrderData> {
 			await wait();
-			const error = maybeError<OrderData>("create");
-			if (error) return error;
+			maybeThrow("create");
 
 			const newOrder = {
 				...structuredClone(orderData),
@@ -98,7 +75,7 @@ export function createMockOrderAdapter(
 			} as OrderData & { model_id: UUID };
 
 			orders.push(newOrder);
-			return { success: true, data: structuredClone(newOrder) };
+			return structuredClone(newOrder);
 		},
 	};
 }

@@ -9,6 +9,7 @@ await npmBuild({
 	dependencies: [
 		"@marianmeres/clog@^3",
 		"@marianmeres/collection-types@^1",
+		"@marianmeres/http-utils@^2",
 		"@marianmeres/pubsub@^2",
 		"@marianmeres/store@^2",
 	],

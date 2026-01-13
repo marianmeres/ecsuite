@@ -87,20 +87,21 @@ Implement the adapter interface for your backend:
 
 ```typescript
 import type { CartAdapter } from "@marianmeres/ecsuite";
+import { HTTP_ERROR } from "@marianmeres/http-utils";
 
 const myCartAdapter: CartAdapter = {
 	async fetch(ctx) {
 		const res = await fetch(`/api/cart?customerId=${ctx.customerId}`);
-		const data = await res.json();
-		return { success: true, data };
+		if (!res.ok) throw new HTTP_ERROR.BadRequest("Failed to fetch cart");
+		return await res.json();
 	},
 	async addItem(item, ctx) {
 		const res = await fetch("/api/cart/items", {
 			method: "POST",
 			body: JSON.stringify(item),
 		});
-		const data = await res.json();
-		return { success: true, data };
+		if (!res.ok) throw new HTTP_ERROR.BadRequest("Failed to add item");
+		return await res.json();
 	},
 	// ... other methods
 };

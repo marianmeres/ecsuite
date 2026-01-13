@@ -3,7 +3,8 @@
  */
 
 import type { CartData, CartItem, UUID } from "@marianmeres/collection-types";
-import type { AdapterResult, CartAdapter } from "../../types/adapter.ts";
+import { HTTP_ERROR } from "@marianmeres/http-utils";
+import type { CartAdapter } from "../../types/adapter.ts";
 import type { DomainContext } from "../../types/state.ts";
 
 /** Mock cart adapter options */
@@ -29,34 +30,24 @@ export function createMockCartAdapter(options: MockCartAdapterOptions = {}): Car
 
 	const wait = () => new Promise<void>((r) => setTimeout(r, delay));
 
-	const maybeError = (operation: string): AdapterResult<CartData> | null => {
+	const maybeThrow = (operation: string): void => {
 		if (options.forceError?.operation === operation) {
-			return {
-				success: false,
-				error: {
-					code: options.forceError.code ?? "MOCK_ERROR",
-					message: options.forceError.message ?? `Mock error for ${operation}`,
-				},
-			};
+			throw new HTTP_ERROR.BadRequest(
+				options.forceError.message ?? `Mock error for ${operation}`
+			);
 		}
-		return null;
 	};
 
 	return {
-		async fetch(_ctx: DomainContext): Promise<AdapterResult<CartData>> {
+		async fetch(_ctx: DomainContext): Promise<CartData> {
 			await wait();
-			const error = maybeError("fetch");
-			if (error) return error;
-			return { success: true, data: structuredClone(cart) };
+			maybeThrow("fetch");
+			return structuredClone(cart);
 		},
 
-		async addItem(
-			item: CartItem,
-			_ctx: DomainContext
-		): Promise<AdapterResult<CartData>> {
+		async addItem(item: CartItem, _ctx: DomainContext): Promise<CartData> {
 			await wait();
-			const error = maybeError("addItem");
-			if (error) return error;
+			maybeThrow("addItem");
 
 			const existingIndex = cart.items.findIndex(
 				(i) => i.product_id === item.product_id
@@ -67,17 +58,16 @@ export function createMockCartAdapter(options: MockCartAdapterOptions = {}): Car
 				cart.items.push({ ...item });
 			}
 
-			return { success: true, data: structuredClone(cart) };
+			return structuredClone(cart);
 		},
 
 		async updateItem(
 			productId: UUID,
 			quantity: number,
 			_ctx: DomainContext
-		): Promise<AdapterResult<CartData>> {
+		): Promise<CartData> {
 			await wait();
-			const error = maybeError("updateItem");
-			if (error) return error;
+			maybeThrow("updateItem");
 
 			const index = cart.items.findIndex((i) => i.product_id === productId);
 			if (index >= 0) {
@@ -88,40 +78,31 @@ export function createMockCartAdapter(options: MockCartAdapterOptions = {}): Car
 				}
 			}
 
-			return { success: true, data: structuredClone(cart) };
+			return structuredClone(cart);
 		},
 
-		async removeItem(
-			productId: UUID,
-			_ctx: DomainContext
-		): Promise<AdapterResult<CartData>> {
+		async removeItem(productId: UUID, _ctx: DomainContext): Promise<CartData> {
 			await wait();
-			const error = maybeError("removeItem");
-			if (error) return error;
+			maybeThrow("removeItem");
 
 			cart.items = cart.items.filter((i) => i.product_id !== productId);
-			return { success: true, data: structuredClone(cart) };
+			return structuredClone(cart);
 		},
 
-		async clear(_ctx: DomainContext): Promise<AdapterResult<CartData>> {
+		async clear(_ctx: DomainContext): Promise<CartData> {
 			await wait();
-			const error = maybeError("clear");
-			if (error) return error;
+			maybeThrow("clear");
 
 			cart = { items: [] };
-			return { success: true, data: structuredClone(cart) };
+			return structuredClone(cart);
 		},
 
-		async sync(
-			newCart: CartData,
-			_ctx: DomainContext
-		): Promise<AdapterResult<CartData>> {
+		async sync(newCart: CartData, _ctx: DomainContext): Promise<CartData> {
 			await wait();
-			const error = maybeError("sync");
-			if (error) return error;
+			maybeThrow("sync");
 
 			cart = structuredClone(newCart);
-			return { success: true, data: structuredClone(cart) };
+			return structuredClone(cart);
 		},
 	};
 }

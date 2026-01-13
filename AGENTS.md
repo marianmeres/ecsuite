@@ -85,7 +85,7 @@ export { ECSuite, createECSuite, ECSuiteConfig } from "./suite.ts";
 export {
   DomainState, DomainError, DomainStateWrapper, DomainContext,
   WishlistItem, WishlistData, EnrichedCartItem, EnrichedWishlistItem,
-  AdapterResult, CartAdapter, WishlistAdapter, OrderAdapter,
+  CartAdapter, WishlistAdapter, OrderAdapter,
   CustomerAdapter, PaymentAdapter, ProductAdapter, OrderCreatePayload,
   DomainName, ECSuiteEventType, ECSuiteEvent, /* ...event interfaces */
 } from "./types/mod.ts";
@@ -156,12 +156,15 @@ suite.once("order:created", (event) => { /* ... */ });
 ### Implementing Adapter
 
 ```typescript
+import { HTTP_ERROR } from "@marianmeres/http-utils";
+
 const myAdapter: CartAdapter = {
   async fetch(ctx) {
-    return { success: true, data: cartData };
-    // or { success: false, error: { code, message } }
+    const res = await fetch(`/api/cart`);
+    if (!res.ok) throw new HTTP_ERROR.BadRequest("Failed to fetch");
+    return await res.json(); // returns CartData directly
   },
-  // ... other methods
+  // ... other methods throw HTTP_ERROR on failure
 };
 ```
 
@@ -171,6 +174,7 @@ const myAdapter: CartAdapter = {
 runtime:
   "@marianmeres/clog": "^3.15.0"
   "@marianmeres/collection-types": "^1.9.0"
+  "@marianmeres/http-utils": "^2.5.1"
   "@marianmeres/pubsub": "^2.4.5"
   "@marianmeres/store": "^2.4.2"
 dev:

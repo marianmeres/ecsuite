@@ -6,6 +6,7 @@
  */
 
 import type { OrderData, UUID } from "@marianmeres/collection-types";
+import { HTTP_ERROR } from "@marianmeres/http-utils";
 import type { OrderAdapter, OrderCreatePayload } from "../types/adapter.ts";
 import { BaseDomainManager, type BaseDomainOptions } from "./base.ts";
 
@@ -63,17 +64,9 @@ export class OrderManager extends BaseDomainManager<OrderListData, OrderAdapter>
 
 		this._setState("syncing");
 		try {
-			const result = await this._adapter.fetchAll(this._context);
-			if (result.success && result.data) {
-				this._setData({ orders: result.data });
-				this._markSynced();
-			} else if (result.error) {
-				this._setError({
-					code: result.error.code,
-					message: result.error.message,
-					operation: "initialize",
-				});
-			}
+			const data = await this._adapter.fetchAll(this._context);
+			this._setData({ orders: data });
+			this._markSynced();
 		} catch (e) {
 			this._setError({
 				code: "FETCH_FAILED",
@@ -99,22 +92,14 @@ export class OrderManager extends BaseDomainManager<OrderListData, OrderAdapter>
 
 		this._setState("syncing");
 		try {
-			const result = await this._adapter.fetchAll(this._context);
-			if (result.success && result.data) {
-				this._setData({ orders: result.data });
-				this._markSynced();
-				this._emit({
-					type: "order:fetched",
-					domain: "order",
-					timestamp: Date.now(),
-				});
-			} else if (result.error) {
-				this._setError({
-					code: result.error.code,
-					message: result.error.message,
-					operation: "fetchAll",
-				});
-			}
+			const data = await this._adapter.fetchAll(this._context);
+			this._setData({ orders: data });
+			this._markSynced();
+			this._emit({
+				type: "order:fetched",
+				domain: "order",
+				timestamp: Date.now(),
+			});
 		} catch (e) {
 			this._setError({
 				code: "FETCH_FAILED",
@@ -140,35 +125,28 @@ export class OrderManager extends BaseDomainManager<OrderListData, OrderAdapter>
 
 		this._setState("syncing");
 		try {
-			const result = await this._adapter.fetchOne(orderId, this._context);
-			if (result.success && result.data) {
-				// Update the order in our local list
-				const current = this._store.get().data ?? { orders: [] };
-				const existingIndex = current.orders.findIndex(
-					(o) => (o as OrderData & { model_id?: UUID }).model_id === orderId
-				);
+			const data = await this._adapter.fetchOne(orderId, this._context);
+			// Update the order in our local list
+			const current = this._store.get().data ?? { orders: [] };
+			const existingIndex = current.orders.findIndex(
+				(o) => (o as OrderData & { model_id?: UUID }).model_id === orderId
+			);
 
-				let orders: OrderData[];
-				if (existingIndex >= 0) {
-					orders = [...current.orders];
-					orders[existingIndex] = result.data;
-				} else {
-					orders = [...current.orders, result.data];
-				}
-
-				this._setData({ orders });
-				this._markSynced();
-				return result.data;
-			} else if (result.error) {
-				this._setError({
-					code: result.error.code,
-					message: result.error.message,
-					operation: "fetchOne",
-				});
+			let orders: OrderData[];
+			if (existingIndex >= 0) {
+				orders = [...current.orders];
+				orders[existingIndex] = data;
+			} else {
+				orders = [...current.orders, data];
 			}
+
+			this._setData({ orders });
+			this._markSynced();
+			return data;
 		} catch (e) {
+			const isNotFound = e instanceof HTTP_ERROR.NotFound;
 			this._setError({
-				code: "FETCH_FAILED",
+				code: isNotFound ? "NOT_FOUND" : "FETCH_FAILED",
 				message: e instanceof Error ? e.message : "Failed to fetch order",
 				originalError: e,
 				operation: "fetchOne",
@@ -193,26 +171,18 @@ export class OrderManager extends BaseDomainManager<OrderListData, OrderAdapter>
 
 		this._setState("syncing");
 		try {
-			const result = await this._adapter.create(orderData, this._context);
-			if (result.success && result.data) {
-				// Add the new order to our local list
-				const current = this._store.get().data ?? { orders: [] };
-				this._setData({ orders: [...current.orders, result.data] });
-				this._markSynced();
-				this._emit({
-					type: "order:created",
-					domain: "order",
-					timestamp: Date.now(),
-					orderId: (result.data as OrderData & { model_id?: UUID }).model_id,
-				});
-				return result.data;
-			} else if (result.error) {
-				this._setError({
-					code: result.error.code,
-					message: result.error.message,
-					operation: "create",
-				});
-			}
+			const data = await this._adapter.create(orderData, this._context);
+			// Add the new order to our local list
+			const current = this._store.get().data ?? { orders: [] };
+			this._setData({ orders: [...current.orders, data] });
+			this._markSynced();
+			this._emit({
+				type: "order:created",
+				domain: "order",
+				timestamp: Date.now(),
+				orderId: (data as OrderData & { model_id?: UUID }).model_id,
+			});
+			return data;
 		} catch (e) {
 			this._setError({
 				code: "CREATE_FAILED",

@@ -6,6 +6,7 @@
  */
 
 import type { PaymentData, UUID } from "@marianmeres/collection-types";
+import { HTTP_ERROR } from "@marianmeres/http-utils";
 import type { PaymentAdapter } from "../types/adapter.ts";
 import { BaseDomainManager, type BaseDomainOptions } from "./base.ts";
 
@@ -77,31 +78,23 @@ export class PaymentManager extends BaseDomainManager<PaymentListData, PaymentAd
 
 		this._setState("syncing");
 		try {
-			const result = await this._adapter.fetchForOrder(orderId, this._context);
-			if (result.success && result.data) {
-				// Merge payments into our list (avoid duplicates by provider_reference)
-				const current = this._store.get().data ?? { payments: [] };
-				const existingRefs = new Set(
-					current.payments.map((p) => p.provider_reference)
-				);
-				const newPayments = result.data.filter(
-					(p) => !existingRefs.has(p.provider_reference)
-				);
-				this._setData({ payments: [...current.payments, ...newPayments] });
-				this._markSynced();
-				this._emit({
-					type: "payment:fetched",
-					domain: "payment",
-					timestamp: Date.now(),
-				});
-				return result.data;
-			} else if (result.error) {
-				this._setError({
-					code: result.error.code,
-					message: result.error.message,
-					operation: "fetchForOrder",
-				});
-			}
+			const data = await this._adapter.fetchForOrder(orderId, this._context);
+			// Merge payments into our list (avoid duplicates by provider_reference)
+			const current = this._store.get().data ?? { payments: [] };
+			const existingRefs = new Set(
+				current.payments.map((p) => p.provider_reference)
+			);
+			const newPayments = data.filter(
+				(p) => !existingRefs.has(p.provider_reference)
+			);
+			this._setData({ payments: [...current.payments, ...newPayments] });
+			this._markSynced();
+			this._emit({
+				type: "payment:fetched",
+				domain: "payment",
+				timestamp: Date.now(),
+			});
+			return data;
 		} catch (e) {
 			this._setError({
 				code: "FETCH_FAILED",
@@ -128,35 +121,28 @@ export class PaymentManager extends BaseDomainManager<PaymentListData, PaymentAd
 
 		this._setState("syncing");
 		try {
-			const result = await this._adapter.fetchOne(paymentId, this._context);
-			if (result.success && result.data) {
-				// Add or update in our local list
-				const current = this._store.get().data ?? { payments: [] };
-				const existingIndex = current.payments.findIndex(
-					(p) => p.provider_reference === result.data!.provider_reference
-				);
+			const data = await this._adapter.fetchOne(paymentId, this._context);
+			// Add or update in our local list
+			const current = this._store.get().data ?? { payments: [] };
+			const existingIndex = current.payments.findIndex(
+				(p) => p.provider_reference === data.provider_reference
+			);
 
-				let payments: PaymentData[];
-				if (existingIndex >= 0) {
-					payments = [...current.payments];
-					payments[existingIndex] = result.data;
-				} else {
-					payments = [...current.payments, result.data];
-				}
-
-				this._setData({ payments });
-				this._markSynced();
-				return result.data;
-			} else if (result.error) {
-				this._setError({
-					code: result.error.code,
-					message: result.error.message,
-					operation: "fetchOne",
-				});
+			let payments: PaymentData[];
+			if (existingIndex >= 0) {
+				payments = [...current.payments];
+				payments[existingIndex] = data;
+			} else {
+				payments = [...current.payments, data];
 			}
+
+			this._setData({ payments });
+			this._markSynced();
+			return data;
 		} catch (e) {
+			const isNotFound = e instanceof HTTP_ERROR.NotFound;
 			this._setError({
-				code: "FETCH_FAILED",
+				code: isNotFound ? "NOT_FOUND" : "FETCH_FAILED",
 				message: e instanceof Error ? e.message : "Failed to fetch payment",
 				originalError: e,
 				operation: "fetchOne",

@@ -3,7 +3,8 @@
  */
 
 import type { PaymentData, UUID } from "@marianmeres/collection-types";
-import type { AdapterResult, PaymentAdapter } from "../../types/adapter.ts";
+import { HTTP_ERROR } from "@marianmeres/http-utils";
+import type { PaymentAdapter } from "../../types/adapter.ts";
 import type { DomainContext } from "../../types/state.ts";
 
 /** Mock payment adapter options */
@@ -31,63 +32,41 @@ export function createMockPaymentAdapter(
 
 	const wait = () => new Promise<void>((r) => setTimeout(r, delay));
 
-	const maybeError = <T>(operation: string): AdapterResult<T> | null => {
+	const maybeThrow = (operation: string): void => {
 		if (options.forceError?.operation === operation) {
-			return {
-				success: false,
-				error: {
-					code: options.forceError.code ?? "MOCK_ERROR",
-					message: options.forceError.message ?? `Mock error for ${operation}`,
-				},
-			};
+			throw new HTTP_ERROR.BadRequest(
+				options.forceError.message ?? `Mock error for ${operation}`
+			);
 		}
-		return null;
 	};
 
-	const getAllPayments = (): PaymentData[] =>
-		Object.values(payments).flat();
+	const getAllPayments = (): PaymentData[] => Object.values(payments).flat();
 
 	return {
-		async fetchForOrder(
-			orderId: UUID,
-			_ctx: DomainContext
-		): Promise<AdapterResult<PaymentData[]>> {
+		async fetchForOrder(orderId: UUID, _ctx: DomainContext): Promise<PaymentData[]> {
 			await wait();
-			const error = maybeError<PaymentData[]>("fetchForOrder");
-			if (error) return error;
+			maybeThrow("fetchForOrder");
 
 			const orderPayments = payments[orderId];
 			if (!orderPayments) {
-				return { success: true, data: [] };
+				return [];
 			}
 
-			return { success: true, data: structuredClone(orderPayments) };
+			return structuredClone(orderPayments);
 		},
 
-		async fetchOne(
-			paymentId: UUID,
-			_ctx: DomainContext
-		): Promise<AdapterResult<PaymentData>> {
+		async fetchOne(paymentId: UUID, _ctx: DomainContext): Promise<PaymentData> {
 			await wait();
-			const error = maybeError<PaymentData>("fetchOne");
-			if (error) return error;
+			maybeThrow("fetchOne");
 
 			const allPayments = getAllPayments();
-			const payment = allPayments.find(
-				(p) => p.provider_reference === paymentId
-			);
+			const payment = allPayments.find((p) => p.provider_reference === paymentId);
 
 			if (!payment) {
-				return {
-					success: false,
-					error: {
-						code: "NOT_FOUND",
-						message: `Payment ${paymentId} not found`,
-					},
-				};
+				throw new HTTP_ERROR.NotFound(`Payment ${paymentId} not found`);
 			}
 
-			return { success: true, data: structuredClone(payment) };
+			return structuredClone(payment);
 		},
 	};
 }
