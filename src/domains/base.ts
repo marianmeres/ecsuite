@@ -49,19 +49,19 @@ export interface BaseDomainOptions {
  * @typeParam TAdapter - The adapter interface type for server communication
  */
 export abstract class BaseDomainManager<TData, TAdapter> {
-	protected readonly _store: StoreLike<DomainStateWrapper<TData>>;
-	protected readonly _pubsub: PubSub;
-	protected readonly _domainName: DomainName;
-	protected readonly _clog: Clog;
-	protected _adapter: TAdapter | null = null;
-	protected _context: DomainContext = {};
+	protected readonly store: StoreLike<DomainStateWrapper<TData>>;
+	protected readonly pubsub: PubSub;
+	protected readonly domainName: DomainName;
+	protected readonly clog: Clog;
+	protected adapter: TAdapter | null = null;
+	protected context: DomainContext = {};
 
 	constructor(domainName: DomainName, options: BaseDomainOptions = {}) {
-		this._domainName = domainName;
-		this._clog = createClog(`ecsuite:${domainName}`, { color: "auto" });
-		this._pubsub = options.pubsub ?? createPubSub();
-		this._context = options.context ?? {};
-		this._clog.debug("initializing", { storageKey: options.storageKey });
+		this.domainName = domainName;
+		this.clog = createClog(`ecsuite:${domainName}`, { color: "auto" });
+		this.pubsub = options.pubsub ?? createPubSub();
+		this.context = options.context ?? {};
+		this.clog.debug("initializing", { storageKey: options.storageKey });
 
 		// Create initial state
 		const initialState: DomainStateWrapper<TData> = {
@@ -78,57 +78,57 @@ export abstract class BaseDomainManager<TData, TAdapter> {
 				options.storageType
 			);
 			const persisted = persistor.get();
-			this._store = createStore<DomainStateWrapper<TData>>(
+			this.store = createStore<DomainStateWrapper<TData>>(
 				persisted ?? initialState,
 				{ persist: persistor.set }
 			);
 		} else {
-			this._store = createStore<DomainStateWrapper<TData>>(initialState);
+			this.store = createStore<DomainStateWrapper<TData>>(initialState);
 		}
 	}
 
 	/** Get the Svelte-compatible subscribe method */
 	get subscribe(): StoreLike<DomainStateWrapper<TData>>["subscribe"] {
-		return this._store.subscribe;
+		return this.store.subscribe;
 	}
 
 	/** Get current state synchronously */
 	get(): DomainStateWrapper<TData> {
-		return this._store.get();
+		return this.store.get();
 	}
 
 	/** Set the adapter */
 	setAdapter(adapter: TAdapter): void {
-		this._adapter = adapter;
+		this.adapter = adapter;
 	}
 
 	/** Get the adapter (may be null) */
 	getAdapter(): TAdapter | null {
-		return this._adapter;
+		return this.adapter;
 	}
 
 	/** Update context (customerId, sessionId) */
 	setContext(context: DomainContext): void {
-		this._context = { ...this._context, ...context };
+		this.context = { ...this.context, ...context };
 	}
 
 	/** Get the current context */
 	getContext(): DomainContext {
-		return { ...this._context };
+		return { ...this.context };
 	}
 
 	/** Transition to a new state */
-	protected _setState(state: DomainState): void {
-		const current = this._store.get();
+	protected setState(state: DomainState): void {
+		const current = this.store.get();
 		if (current.state !== state) {
-			this._clog.debug("state change", {
+			this.clog.debug("state change", {
 				from: current.state,
 				to: state,
 			});
-			this._store.update((s) => ({ ...s, state }));
-			this._emit({
+			this.store.update((s) => ({ ...s, state }));
+			this.emit({
 				type: "domain:state:changed",
-				domain: this._domainName,
+				domain: this.domainName,
 				timestamp: Date.now(),
 				previousState: current.state,
 				newState: state,
@@ -137,8 +137,8 @@ export abstract class BaseDomainManager<TData, TAdapter> {
 	}
 
 	/** Update data and optionally set state to ready */
-	protected _setData(data: TData, markReady = true): void {
-		this._store.update((s) => ({
+	protected setData(data: TData, markReady = true): void {
+		this.store.update((s) => ({
 			...s,
 			data,
 			state: markReady ? "ready" : s.state,
@@ -147,43 +147,43 @@ export abstract class BaseDomainManager<TData, TAdapter> {
 	}
 
 	/** Set error state */
-	protected _setError(error: DomainError): void {
-		this._clog.error("error", {
+	protected setError(error: DomainError): void {
+		this.clog.error("error", {
 			code: error.code,
 			message: error.message,
 			operation: error.operation,
 		});
-		this._store.update((s) => ({
+		this.store.update((s) => ({
 			...s,
 			state: "error",
 			error,
 		}));
-		this._emit({
+		this.emit({
 			type: "domain:error",
-			domain: this._domainName,
+			domain: this.domainName,
 			timestamp: Date.now(),
 			error,
 		});
 	}
 
 	/** Mark as synced */
-	protected _markSynced(): void {
-		this._clog.debug("synced");
-		this._store.update((s) => ({
+	protected markSynced(): void {
+		this.clog.debug("synced");
+		this.store.update((s) => ({
 			...s,
 			state: "ready",
 			lastSyncedAt: Date.now(),
 		}));
-		this._emit({
+		this.emit({
 			type: "domain:synced",
-			domain: this._domainName,
+			domain: this.domainName,
 			timestamp: Date.now(),
 		});
 	}
 
 	/** Emit an event via pubsub */
-	protected _emit(event: ECSuiteEvent): void {
-		this._pubsub.publish(event.type, event);
+	protected emit(event: ECSuiteEvent): void {
+		this.pubsub.publish(event.type, event);
 	}
 
 	/**
@@ -196,7 +196,7 @@ export abstract class BaseDomainManager<TData, TAdapter> {
 	 * 5. On success: marks synced, calls success callback
 	 * 6. On error: rolls back to previous state, sets error state
 	 */
-	protected async _withOptimisticUpdate<T>(
+	protected async withOptimisticUpdate<T>(
 		operation: string,
 		optimisticUpdate: () => void,
 		serverSync: () => Promise<T>,
@@ -204,20 +204,20 @@ export abstract class BaseDomainManager<TData, TAdapter> {
 		onError?: (error: DomainError) => void
 	): Promise<void> {
 		// Capture current state for rollback
-		const previousData = this._store.get().data;
+		const previousData = this.store.get().data;
 
 		// Apply optimistic update immediately
 		optimisticUpdate();
-		this._setState("syncing");
+		this.setState("syncing");
 
 		try {
 			const result = await serverSync();
-			this._markSynced();
+			this.markSynced();
 			onSuccess?.(result);
 		} catch (e) {
 			// Rollback on error
 			if (previousData !== null) {
-				this._setData(previousData, false);
+				this.setData(previousData, false);
 			}
 			const error: DomainError = {
 				code: "SYNC_FAILED",
@@ -225,7 +225,7 @@ export abstract class BaseDomainManager<TData, TAdapter> {
 				originalError: e,
 				operation,
 			};
-			this._setError(error);
+			this.setError(error);
 			onError?.(error);
 		}
 	}
@@ -235,8 +235,8 @@ export abstract class BaseDomainManager<TData, TAdapter> {
 
 	/** Reset to initial state */
 	reset(): void {
-		this._clog.debug("reset");
-		this._store.set({
+		this.clog.debug("reset");
+		this.store.set({
 			state: "initializing",
 			data: null,
 			error: null,

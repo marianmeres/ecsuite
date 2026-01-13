@@ -57,19 +57,19 @@ export interface ProductManagerOptions {
  * ```
  */
 export class ProductManager {
-	private readonly _clog = createClog("ecsuite:product", { color: "auto" });
-	private readonly _pubsub: PubSub;
-	private _adapter: ProductAdapter | null = null;
-	private _context: DomainContext = {};
-	private _cache = new Map<UUID, CacheEntry>();
-	private _cacheTtl: number;
+	readonly #clog = createClog("ecsuite:product", { color: "auto" });
+	readonly #pubsub: PubSub;
+	#adapter: ProductAdapter | null = null;
+	#context: DomainContext = {};
+	#cache = new Map<UUID, CacheEntry>();
+	#cacheTtl: number;
 
 	constructor(options: ProductManagerOptions = {}) {
-		this._adapter = options.adapter ?? null;
-		this._context = options.context ?? {};
-		this._pubsub = options.pubsub ?? createPubSub();
-		this._cacheTtl = options.cacheTtl ?? 5 * 60 * 1000; // 5 minutes default
-		this._clog.debug("initialized", { cacheTtl: this._cacheTtl });
+		this.#adapter = options.adapter ?? null;
+		this.#context = options.context ?? {};
+		this.#pubsub = options.pubsub ?? createPubSub();
+		this.#cacheTtl = options.cacheTtl ?? 5 * 60 * 1000; // 5 minutes default
+		this.#clog.debug("initialized", { cacheTtl: this.#cacheTtl });
 	}
 
 	/**
@@ -78,8 +78,8 @@ export class ProductManager {
 	 * @param adapter - The ProductAdapter implementation
 	 */
 	setAdapter(adapter: ProductAdapter): void {
-		this._adapter = adapter;
-		this._clog.debug("adapter set");
+		this.#adapter = adapter;
+		this.#clog.debug("adapter set");
 	}
 
 	/**
@@ -88,7 +88,7 @@ export class ProductManager {
 	 * @returns The adapter or null if not set
 	 */
 	getAdapter(): ProductAdapter | null {
-		return this._adapter;
+		return this.#adapter;
 	}
 
 	/**
@@ -97,7 +97,7 @@ export class ProductManager {
 	 * @param context - Context to merge with existing context
 	 */
 	setContext(context: DomainContext): void {
-		this._context = { ...this._context, ...context };
+		this.#context = { ...this.#context, ...context };
 	}
 
 	/**
@@ -106,7 +106,7 @@ export class ProductManager {
 	 * @returns Copy of the current context
 	 */
 	getContext(): DomainContext {
-		return { ...this._context };
+		return { ...this.#context };
 	}
 
 	/**
@@ -119,25 +119,25 @@ export class ProductManager {
 	 */
 	async getById(productId: UUID): Promise<ProductData | null> {
 		// Check cache first
-		const cached = this._getFromCache(productId);
+		const cached = this.#getFromCache(productId);
 		if (cached) {
 			return cached;
 		}
 
 		// Fetch from server
-		if (!this._adapter) {
-			this._clog.debug("getById: no adapter", { productId });
+		if (!this.#adapter) {
+			this.#clog.debug("getById: no adapter", { productId });
 			return null;
 		}
 
-		this._clog.debug("getById: fetching", { productId });
+		this.#clog.debug("getById: fetching", { productId });
 		try {
-			const data = await this._adapter.fetchOne(productId, this._context);
-			this._setCache(productId, data);
-			this._emitFetched(productId);
+			const data = await this.#adapter.fetchOne(productId, this.#context);
+			this.#setCache(productId, data);
+			this.#emitFetched(productId);
 			return data;
 		} catch (e) {
-			this._clog.error("getById failed", { productId, error: e });
+			this.#clog.error("getById failed", { productId, error: e });
 			return null;
 		}
 	}
@@ -156,7 +156,7 @@ export class ProductManager {
 
 		// Check cache for each product
 		for (const id of productIds) {
-			const cached = this._getFromCache(id);
+			const cached = this.#getFromCache(id);
 			if (cached) {
 				result.set(id, cached);
 			} else {
@@ -165,26 +165,26 @@ export class ProductManager {
 		}
 
 		// Fetch missing from server
-		if (missingIds.length > 0 && this._adapter) {
-			this._clog.debug("getByIds: fetching missing", {
+		if (missingIds.length > 0 && this.#adapter) {
+			this.#clog.debug("getByIds: fetching missing", {
 				total: productIds.length,
 				cached: result.size,
 				missing: missingIds.length,
 			});
 
 			try {
-				const fetchedData = await this._adapter.fetchMany(missingIds, this._context);
+				const fetchedData = await this.#adapter.fetchMany(missingIds, this.#context);
 				for (const product of fetchedData) {
 					// Products from collection-types have model_id
 					const productId = (product as ProductData & { model_id?: UUID }).model_id;
 					if (productId) {
-						this._setCache(productId, product);
+						this.#setCache(productId, product);
 						result.set(productId, product);
-						this._emitFetched(productId);
+						this.#emitFetched(productId);
 					}
 				}
 			} catch (e) {
-				this._clog.error("getByIds failed", { missingIds, error: e });
+				this.#clog.error("getByIds failed", { missingIds, error: e });
 			}
 		}
 
@@ -201,7 +201,7 @@ export class ProductManager {
 		const missingIds = productIds.filter((id) => !this.isCached(id));
 		if (missingIds.length === 0) return;
 
-		this._clog.debug("prefetch", { count: missingIds.length });
+		this.#clog.debug("prefetch", { count: missingIds.length });
 		await this.getByIds(missingIds);
 	}
 
@@ -212,11 +212,11 @@ export class ProductManager {
 	 */
 	clearCache(productId?: UUID): void {
 		if (productId) {
-			this._cache.delete(productId);
-			this._clog.debug("cache cleared for product", { productId });
+			this.#cache.delete(productId);
+			this.#clog.debug("cache cleared for product", { productId });
 		} else {
-			this._cache.clear();
-			this._clog.debug("cache cleared entirely");
+			this.#cache.clear();
+			this.#clog.debug("cache cleared entirely");
 		}
 	}
 
@@ -227,7 +227,7 @@ export class ProductManager {
 	 * @returns True if the product is cached and valid
 	 */
 	isCached(productId: UUID): boolean {
-		const entry = this._cache.get(productId);
+		const entry = this.#cache.get(productId);
 		if (!entry) return false;
 		return Date.now() < entry.expiresAt;
 	}
@@ -238,17 +238,17 @@ export class ProductManager {
 	 * @returns Number of cached products (includes expired entries)
 	 */
 	getCacheSize(): number {
-		return this._cache.size;
+		return this.#cache.size;
 	}
 
 	/** Get product from cache if valid */
-	private _getFromCache(productId: UUID): ProductData | null {
-		const entry = this._cache.get(productId);
+	#getFromCache(productId: UUID): ProductData | null {
+		const entry = this.#cache.get(productId);
 		if (!entry) return null;
 
 		if (Date.now() >= entry.expiresAt) {
 			// Expired, remove from cache
-			this._cache.delete(productId);
+			this.#cache.delete(productId);
 			return null;
 		}
 
@@ -256,21 +256,21 @@ export class ProductManager {
 	}
 
 	/** Set product in cache */
-	private _setCache(productId: UUID, data: ProductData): void {
-		this._cache.set(productId, {
+	#setCache(productId: UUID, data: ProductData): void {
+		this.#cache.set(productId, {
 			data,
-			expiresAt: Date.now() + this._cacheTtl,
+			expiresAt: Date.now() + this.#cacheTtl,
 		});
 	}
 
 	/** Emit product:fetched event */
-	private _emitFetched(productId: UUID): void {
+	#emitFetched(productId: UUID): void {
 		const event: ProductFetchedEvent = {
 			type: "product:fetched",
 			domain: "product",
 			timestamp: Date.now(),
 			productId,
 		};
-		this._pubsub.publish(event.type, event);
+		this.#pubsub.publish(event.type, event);
 	}
 }

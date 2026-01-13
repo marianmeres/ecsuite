@@ -71,9 +71,9 @@ export interface ECSuiteConfig {
  * ```
  */
 export class ECSuite {
-	private readonly _clog = createClog("ecsuite", { color: "auto" });
-	private readonly _pubsub: PubSub;
-	private _context: DomainContext;
+	readonly #clog = createClog("ecsuite", { color: "auto" });
+	readonly #pubsub: PubSub;
+	#context: DomainContext;
 
 	/** Cart domain manager */
 	readonly cart: CartManager;
@@ -89,54 +89,54 @@ export class ECSuite {
 	readonly product: ProductManager;
 
 	constructor(config: ECSuiteConfig = {}) {
-		this._clog.debug("creating suite", {
+		this.#clog.debug("creating suite", {
 			hasAdapters: !!config.adapters,
 			autoInitialize: config.autoInitialize !== false,
 		});
-		this._pubsub = createPubSub();
-		this._context = config.context ?? {};
+		this.#pubsub = createPubSub();
+		this.#context = config.context ?? {};
 
 		const storageType = config.storage?.type ?? "local";
 
 		// Initialize domain managers with shared pubsub
 		this.cart = new CartManager({
 			adapter: config.adapters?.cart,
-			context: this._context,
-			pubsub: this._pubsub,
+			context: this.#context,
+			pubsub: this.#pubsub,
 			storageKey: config.storage?.cartKey ?? "ecsuite:cart",
 			storageType,
 		});
 
 		this.wishlist = new WishlistManager({
 			adapter: config.adapters?.wishlist,
-			context: this._context,
-			pubsub: this._pubsub,
+			context: this.#context,
+			pubsub: this.#pubsub,
 			storageKey: config.storage?.wishlistKey ?? "ecsuite:wishlist",
 			storageType,
 		});
 
 		this.order = new OrderManager({
 			adapter: config.adapters?.order,
-			context: this._context,
-			pubsub: this._pubsub,
+			context: this.#context,
+			pubsub: this.#pubsub,
 		});
 
 		this.customer = new CustomerManager({
 			adapter: config.adapters?.customer,
-			context: this._context,
-			pubsub: this._pubsub,
+			context: this.#context,
+			pubsub: this.#pubsub,
 		});
 
 		this.payment = new PaymentManager({
 			adapter: config.adapters?.payment,
-			context: this._context,
-			pubsub: this._pubsub,
+			context: this.#context,
+			pubsub: this.#pubsub,
 		});
 
 		this.product = new ProductManager({
 			adapter: config.adapters?.product,
-			context: this._context,
-			pubsub: this._pubsub,
+			context: this.#context,
+			pubsub: this.#pubsub,
 			cacheTtl: config.productCacheTtl,
 		});
 
@@ -148,7 +148,7 @@ export class ECSuite {
 
 	/** Initialize all domains */
 	async initialize(): Promise<void> {
-		this._clog.debug("initializing all domains");
+		this.#clog.debug("initializing all domains");
 		await Promise.all([
 			this.cart.initialize(),
 			this.wishlist.initialize(),
@@ -157,13 +157,13 @@ export class ECSuite {
 			this.payment.initialize(),
 			// Note: ProductManager doesn't have initialize() - it's lazy-loaded
 		]);
-		this._clog.debug("all domains initialized");
+		this.#clog.debug("all domains initialized");
 	}
 
 	/** Update context across all domains */
 	setContext(context: DomainContext): void {
-		this._clog.debug("setContext", context);
-		this._context = { ...this._context, ...context };
+		this.#clog.debug("setContext", context);
+		this.#context = { ...this.#context, ...context };
 		this.cart.setContext(context);
 		this.wishlist.setContext(context);
 		this.order.setContext(context);
@@ -174,27 +174,27 @@ export class ECSuite {
 
 	/** Get the current context */
 	getContext(): DomainContext {
-		return { ...this._context };
+		return { ...this.#context };
 	}
 
 	/** Subscribe to specific event type */
 	on(eventType: ECSuiteEventType, callback: Subscriber): Unsubscriber {
-		return this._pubsub.subscribe(eventType, callback);
+		return this.#pubsub.subscribe(eventType, callback);
 	}
 
 	/** Subscribe to all events (receives { event, data } envelope) */
 	onAny(callback: (envelope: { event: string; data: ECSuiteEvent }) => void): Unsubscriber {
-		return this._pubsub.subscribe("*", callback);
+		return this.#pubsub.subscribe("*", callback);
 	}
 
 	/** Subscribe once to an event */
 	once(eventType: ECSuiteEventType, callback: Subscriber): Unsubscriber {
-		return this._pubsub.subscribeOnce(eventType, callback);
+		return this.#pubsub.subscribeOnce(eventType, callback);
 	}
 
 	/** Reset all domains to initial state */
 	reset(): void {
-		this._clog.debug("reset all domains");
+		this.#clog.debug("reset all domains");
 		this.cart.reset();
 		this.wishlist.reset();
 		this.order.reset();

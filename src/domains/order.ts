@@ -47,35 +47,35 @@ export class OrderManager extends BaseDomainManager<OrderListData, OrderAdapter>
 		});
 
 		if (options.adapter) {
-			this._adapter = options.adapter;
+			this.adapter = options.adapter;
 		}
 	}
 
 	/** Initialize by fetching orders from server */
 	async initialize(): Promise<void> {
-		this._clog.debug("initialize start");
-		if (!this._adapter) {
+		this.clog.debug("initialize start");
+		if (!this.adapter) {
 			// No adapter, set empty orders and mark ready
-			this._setData({ orders: [] });
-			this._setState("ready");
-			this._clog.debug("initialize complete (no adapter)");
+			this.setData({ orders: [] });
+			this.setState("ready");
+			this.clog.debug("initialize complete (no adapter)");
 			return;
 		}
 
-		this._setState("syncing");
+		this.setState("syncing");
 		try {
-			const data = await this._adapter.fetchAll(this._context);
-			this._setData({ orders: data });
-			this._markSynced();
+			const data = await this.adapter.fetchAll(this.context);
+			this.setData({ orders: data });
+			this.markSynced();
 		} catch (e) {
-			this._setError({
+			this.setError({
 				code: "FETCH_FAILED",
 				message: e instanceof Error ? e.message : "Failed to fetch orders",
 				originalError: e,
 				operation: "initialize",
 			});
 		}
-		this._clog.debug("initialize complete", { orderCount: this.getOrderCount() });
+		this.clog.debug("initialize complete", { orderCount: this.getOrderCount() });
 	}
 
 	/**
@@ -85,23 +85,23 @@ export class OrderManager extends BaseDomainManager<OrderListData, OrderAdapter>
 	 * @emits order:fetched - On successful fetch
 	 */
 	async fetchAll(): Promise<void> {
-		this._clog.debug("fetchAll");
-		if (!this._adapter) {
+		this.clog.debug("fetchAll");
+		if (!this.adapter) {
 			return;
 		}
 
-		this._setState("syncing");
+		this.setState("syncing");
 		try {
-			const data = await this._adapter.fetchAll(this._context);
-			this._setData({ orders: data });
-			this._markSynced();
-			this._emit({
+			const data = await this.adapter.fetchAll(this.context);
+			this.setData({ orders: data });
+			this.markSynced();
+			this.emit({
 				type: "order:fetched",
 				domain: "order",
 				timestamp: Date.now(),
 			});
 		} catch (e) {
-			this._setError({
+			this.setError({
 				code: "FETCH_FAILED",
 				message: e instanceof Error ? e.message : "Failed to fetch orders",
 				originalError: e,
@@ -118,16 +118,16 @@ export class OrderManager extends BaseDomainManager<OrderListData, OrderAdapter>
 	 * @returns The fetched order or null on error
 	 */
 	async fetchOne(orderId: UUID): Promise<OrderData | null> {
-		this._clog.debug("fetchOne", { orderId });
-		if (!this._adapter) {
+		this.clog.debug("fetchOne", { orderId });
+		if (!this.adapter) {
 			return null;
 		}
 
-		this._setState("syncing");
+		this.setState("syncing");
 		try {
-			const data = await this._adapter.fetchOne(orderId, this._context);
+			const data = await this.adapter.fetchOne(orderId, this.context);
 			// Update the order in our local list
-			const current = this._store.get().data ?? { orders: [] };
+			const current = this.store.get().data ?? { orders: [] };
 			const existingIndex = current.orders.findIndex(
 				(o) => (o as OrderData & { model_id?: UUID }).model_id === orderId
 			);
@@ -140,12 +140,12 @@ export class OrderManager extends BaseDomainManager<OrderListData, OrderAdapter>
 				orders = [...current.orders, data];
 			}
 
-			this._setData({ orders });
-			this._markSynced();
+			this.setData({ orders });
+			this.markSynced();
 			return data;
 		} catch (e) {
 			const isNotFound = e instanceof HTTP_ERROR.NotFound;
-			this._setError({
+			this.setError({
 				code: isNotFound ? "NOT_FOUND" : "FETCH_FAILED",
 				message: e instanceof Error ? e.message : "Failed to fetch order",
 				originalError: e,
@@ -164,19 +164,19 @@ export class OrderManager extends BaseDomainManager<OrderListData, OrderAdapter>
 	 * @emits order:created - On successful creation
 	 */
 	async create(orderData: OrderCreatePayload): Promise<OrderData | null> {
-		this._clog.debug("create");
-		if (!this._adapter) {
+		this.clog.debug("create");
+		if (!this.adapter) {
 			return null;
 		}
 
-		this._setState("syncing");
+		this.setState("syncing");
 		try {
-			const data = await this._adapter.create(orderData, this._context);
+			const data = await this.adapter.create(orderData, this.context);
 			// Add the new order to our local list
-			const current = this._store.get().data ?? { orders: [] };
-			this._setData({ orders: [...current.orders, data] });
-			this._markSynced();
-			this._emit({
+			const current = this.store.get().data ?? { orders: [] };
+			this.setData({ orders: [...current.orders, data] });
+			this.markSynced();
+			this.emit({
 				type: "order:created",
 				domain: "order",
 				timestamp: Date.now(),
@@ -184,7 +184,7 @@ export class OrderManager extends BaseDomainManager<OrderListData, OrderAdapter>
 			});
 			return data;
 		} catch (e) {
-			this._setError({
+			this.setError({
 				code: "CREATE_FAILED",
 				message: e instanceof Error ? e.message : "Failed to create order",
 				originalError: e,
@@ -200,7 +200,7 @@ export class OrderManager extends BaseDomainManager<OrderListData, OrderAdapter>
 	 * @returns Total order count
 	 */
 	getOrderCount(): number {
-		return this._store.get().data?.orders.length ?? 0;
+		return this.store.get().data?.orders.length ?? 0;
 	}
 
 	/**
@@ -209,7 +209,7 @@ export class OrderManager extends BaseDomainManager<OrderListData, OrderAdapter>
 	 * @returns Array of orders
 	 */
 	getOrders(): OrderData[] {
-		return this._store.get().data?.orders ?? [];
+		return this.store.get().data?.orders ?? [];
 	}
 
 	/**
@@ -219,6 +219,6 @@ export class OrderManager extends BaseDomainManager<OrderListData, OrderAdapter>
 	 * @returns The order or undefined if index is out of bounds
 	 */
 	getOrderByIndex(index: number): OrderData | undefined {
-		return this._store.get().data?.orders[index];
+		return this.store.get().data?.orders[index];
 	}
 }

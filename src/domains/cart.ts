@@ -44,29 +44,29 @@ export class CartManager extends BaseDomainManager<CartData, CartAdapter> {
 		});
 
 		if (options.adapter) {
-			this._adapter = options.adapter;
+			this.adapter = options.adapter;
 		}
 	}
 
 	/** Initialize cart (load from storage, then sync with server) */
 	async initialize(): Promise<void> {
-		this._clog.debug("initialize start");
-		const current = this._store.get();
+		this.clog.debug("initialize start");
+		const current = this.store.get();
 
 		// If we have persisted data, use it immediately
 		if (current.data) {
-			this._setState("ready");
+			this.setState("ready");
 		}
 
 		// Then sync with server if adapter is available
-		if (this._adapter) {
-			this._setState("syncing");
+		if (this.adapter) {
+			this.setState("syncing");
 			try {
-				const data = await this._adapter.fetch(this._context);
-				this._setData(data);
-				this._markSynced();
+				const data = await this.adapter.fetch(this.context);
+				this.setData(data);
+				this.markSynced();
 			} catch (e) {
-				this._setError({
+				this.setError({
 					code: "FETCH_FAILED",
 					message: e instanceof Error ? e.message : "Failed to fetch cart",
 					originalError: e,
@@ -76,11 +76,11 @@ export class CartManager extends BaseDomainManager<CartData, CartAdapter> {
 		} else {
 			// No adapter, just use local storage or create empty cart
 			if (!current.data) {
-				this._setData({ items: [] });
+				this.setData({ items: [] });
 			}
-			this._setState("ready");
+			this.setState("ready");
 		}
-		this._clog.debug("initialize complete", { itemCount: this.getItemCount() });
+		this.clog.debug("initialize complete", { itemCount: this.getItemCount() });
 	}
 
 	/**
@@ -91,12 +91,12 @@ export class CartManager extends BaseDomainManager<CartData, CartAdapter> {
 	 * @emits cart:item:added - On successful addition
 	 */
 	async addItem(item: CartItem): Promise<void> {
-		this._clog.debug("addItem", { productId: item.product_id, quantity: item.quantity });
-		await this._withOptimisticUpdate(
+		this.clog.debug("addItem", { productId: item.product_id, quantity: item.quantity });
+		await this.withOptimisticUpdate(
 			"addItem",
 			() => {
 				// Optimistic: update local state immediately
-				const current = this._store.get().data ?? { items: [] };
+				const current = this.store.get().data ?? { items: [] };
 				const existingIndex = current.items.findIndex(
 					(i) => i.product_id === item.product_id
 				);
@@ -114,21 +114,21 @@ export class CartManager extends BaseDomainManager<CartData, CartAdapter> {
 					newItems = [...current.items, item];
 				}
 
-				this._setData({ items: newItems }, false);
+				this.setData({ items: newItems }, false);
 			},
 			async () => {
 				// Server sync
-				if (this._adapter) {
-					return await this._adapter.addItem(item, this._context);
+				if (this.adapter) {
+					return await this.adapter.addItem(item, this.context);
 				}
-				return this._store.get().data;
+				return this.store.get().data;
 			},
 			(serverData) => {
 				// On success, use server data if available
 				if (serverData) {
-					this._setData(serverData);
+					this.setData(serverData);
 				}
-				this._emit({
+				this.emit({
 					type: "cart:item:added",
 					domain: "cart",
 					timestamp: Date.now(),
@@ -148,35 +148,35 @@ export class CartManager extends BaseDomainManager<CartData, CartAdapter> {
 	 * @emits cart:item:updated - On successful update
 	 */
 	async updateItemQuantity(productId: UUID, quantity: number): Promise<void> {
-		this._clog.debug("updateItemQuantity", { productId, quantity });
+		this.clog.debug("updateItemQuantity", { productId, quantity });
 		if (quantity <= 0) {
 			return this.removeItem(productId);
 		}
 
-		const current = this._store.get().data;
+		const current = this.store.get().data;
 		const existingItem = current?.items.find((i) => i.product_id === productId);
 		const previousQuantity = existingItem?.quantity ?? 0;
 
-		await this._withOptimisticUpdate(
+		await this.withOptimisticUpdate(
 			"updateItem",
 			() => {
 				const items = current?.items ?? [];
 				const newItems = items.map((i) =>
 					i.product_id === productId ? { ...i, quantity } : i
 				);
-				this._setData({ items: newItems }, false);
+				this.setData({ items: newItems }, false);
 			},
 			async () => {
-				if (this._adapter) {
-					return await this._adapter.updateItem(productId, quantity, this._context);
+				if (this.adapter) {
+					return await this.adapter.updateItem(productId, quantity, this.context);
 				}
-				return this._store.get().data;
+				return this.store.get().data;
 			},
 			(serverData) => {
 				if (serverData) {
-					this._setData(serverData);
+					this.setData(serverData);
 				}
-				this._emit({
+				this.emit({
 					type: "cart:item:updated",
 					domain: "cart",
 					timestamp: Date.now(),
@@ -195,25 +195,25 @@ export class CartManager extends BaseDomainManager<CartData, CartAdapter> {
 	 * @emits cart:item:removed - On successful removal
 	 */
 	async removeItem(productId: UUID): Promise<void> {
-		this._clog.debug("removeItem", { productId });
-		await this._withOptimisticUpdate(
+		this.clog.debug("removeItem", { productId });
+		await this.withOptimisticUpdate(
 			"removeItem",
 			() => {
-				const current = this._store.get().data ?? { items: [] };
+				const current = this.store.get().data ?? { items: [] };
 				const newItems = current.items.filter((i) => i.product_id !== productId);
-				this._setData({ items: newItems }, false);
+				this.setData({ items: newItems }, false);
 			},
 			async () => {
-				if (this._adapter) {
-					return await this._adapter.removeItem(productId, this._context);
+				if (this.adapter) {
+					return await this.adapter.removeItem(productId, this.context);
 				}
-				return this._store.get().data;
+				return this.store.get().data;
 			},
 			(serverData) => {
 				if (serverData) {
-					this._setData(serverData);
+					this.setData(serverData);
 				}
-				this._emit({
+				this.emit({
 					type: "cart:item:removed",
 					domain: "cart",
 					timestamp: Date.now(),
@@ -229,20 +229,20 @@ export class CartManager extends BaseDomainManager<CartData, CartAdapter> {
 	 * @emits cart:cleared - On successful clear
 	 */
 	async clear(): Promise<void> {
-		this._clog.debug("clear");
-		await this._withOptimisticUpdate(
+		this.clog.debug("clear");
+		await this.withOptimisticUpdate(
 			"clear",
 			() => {
-				this._setData({ items: [] }, false);
+				this.setData({ items: [] }, false);
 			},
 			async () => {
-				if (this._adapter) {
-					return await this._adapter.clear(this._context);
+				if (this.adapter) {
+					return await this.adapter.clear(this.context);
 				}
 				return { items: [] };
 			},
 			() => {
-				this._emit({
+				this.emit({
 					type: "cart:cleared",
 					domain: "cart",
 					timestamp: Date.now(),
@@ -257,7 +257,7 @@ export class CartManager extends BaseDomainManager<CartData, CartAdapter> {
 	 * @returns Total item count
 	 */
 	getItemCount(): number {
-		const data = this._store.get().data;
+		const data = this.store.get().data;
 		return data?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
 	}
 
@@ -268,7 +268,7 @@ export class CartManager extends BaseDomainManager<CartData, CartAdapter> {
 	 * @returns True if the product is in the cart
 	 */
 	hasProduct(productId: UUID): boolean {
-		const data = this._store.get().data;
+		const data = this.store.get().data;
 		return data?.items.some((i) => i.product_id === productId) ?? false;
 	}
 
@@ -279,7 +279,7 @@ export class CartManager extends BaseDomainManager<CartData, CartAdapter> {
 	 * @returns The cart item or undefined if not found
 	 */
 	getItem(productId: UUID): CartItem | undefined {
-		const data = this._store.get().data;
+		const data = this.store.get().data;
 		return data?.items.find((i) => i.product_id === productId);
 	}
 
@@ -291,7 +291,7 @@ export class CartManager extends BaseDomainManager<CartData, CartAdapter> {
 	 * @returns Array of enriched cart items with product data and line totals
 	 */
 	async getEnrichedItems(productManager: ProductManager): Promise<EnrichedCartItem[]> {
-		const data = this._store.get().data;
+		const data = this.store.get().data;
 		if (!data?.items.length) return [];
 
 		const productIds = data.items.map((i) => i.product_id);

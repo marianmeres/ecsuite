@@ -41,39 +41,39 @@ export class CustomerManager extends BaseDomainManager<CustomerData, CustomerAda
 		});
 
 		if (options.adapter) {
-			this._adapter = options.adapter;
+			this.adapter = options.adapter;
 		}
 	}
 
 	/** Initialize by fetching customer data from server */
 	async initialize(): Promise<void> {
-		this._clog.debug("initialize start");
-		if (!this._adapter) {
+		this.clog.debug("initialize start");
+		if (!this.adapter) {
 			// No adapter, mark ready with no data
-			this._setState("ready");
-			this._clog.debug("initialize complete (no adapter)");
+			this.setState("ready");
+			this.clog.debug("initialize complete (no adapter)");
 			return;
 		}
 
-		this._setState("syncing");
+		this.setState("syncing");
 		try {
-			const data = await this._adapter.fetch(this._context);
-			this._setData(data);
-			this._markSynced();
-			this._emit({
+			const data = await this.adapter.fetch(this.context);
+			this.setData(data);
+			this.markSynced();
+			this.emit({
 				type: "customer:fetched",
 				domain: "customer",
 				timestamp: Date.now(),
 			});
 		} catch (e) {
-			this._setError({
+			this.setError({
 				code: "FETCH_FAILED",
 				message: e instanceof Error ? e.message : "Failed to fetch customer",
 				originalError: e,
 				operation: "initialize",
 			});
 		}
-		this._clog.debug("initialize complete");
+		this.clog.debug("initialize complete");
 	}
 
 	/**
@@ -82,23 +82,23 @@ export class CustomerManager extends BaseDomainManager<CustomerData, CustomerAda
 	 * @emits customer:fetched - On successful fetch
 	 */
 	async refresh(): Promise<void> {
-		this._clog.debug("refresh");
-		if (!this._adapter) {
+		this.clog.debug("refresh");
+		if (!this.adapter) {
 			return;
 		}
 
-		this._setState("syncing");
+		this.setState("syncing");
 		try {
-			const data = await this._adapter.fetch(this._context);
-			this._setData(data);
-			this._markSynced();
-			this._emit({
+			const data = await this.adapter.fetch(this.context);
+			this.setData(data);
+			this.markSynced();
+			this.emit({
 				type: "customer:fetched",
 				domain: "customer",
 				timestamp: Date.now(),
 			});
 		} catch (e) {
-			this._setError({
+			this.setError({
 				code: "FETCH_FAILED",
 				message: e instanceof Error ? e.message : "Failed to fetch customer",
 				originalError: e,
@@ -115,30 +115,30 @@ export class CustomerManager extends BaseDomainManager<CustomerData, CustomerAda
 	 * @emits customer:updated - On successful update
 	 */
 	async update(data: Partial<CustomerData>): Promise<void> {
-		this._clog.debug("update");
-		if (!this._adapter) {
+		this.clog.debug("update");
+		if (!this.adapter) {
 			return;
 		}
 
-		const current = this._store.get().data;
+		const current = this.store.get().data;
 		if (!current) {
 			return;
 		}
 
-		await this._withOptimisticUpdate(
+		await this.withOptimisticUpdate(
 			"update",
 			() => {
 				// Optimistic: merge partial data
-				this._setData({ ...current, ...data }, false);
+				this.setData({ ...current, ...data }, false);
 			},
 			async () => {
-				return await this._adapter!.update(data, this._context);
+				return await this.adapter!.update(data, this.context);
 			},
 			(serverData) => {
 				if (serverData) {
-					this._setData(serverData);
+					this.setData(serverData);
 				}
-				this._emit({
+				this.emit({
 					type: "customer:updated",
 					domain: "customer",
 					timestamp: Date.now(),
@@ -153,7 +153,7 @@ export class CustomerManager extends BaseDomainManager<CustomerData, CustomerAda
 	 * @returns Email or null if not loaded
 	 */
 	getEmail(): string | null {
-		return this._store.get().data?.email ?? null;
+		return this.store.get().data?.email ?? null;
 	}
 
 	/**
@@ -162,7 +162,7 @@ export class CustomerManager extends BaseDomainManager<CustomerData, CustomerAda
 	 * @returns Name or null if not loaded
 	 */
 	getName(): string | null {
-		return this._store.get().data?.name ?? null;
+		return this.store.get().data?.name ?? null;
 	}
 
 	/**
@@ -171,7 +171,7 @@ export class CustomerManager extends BaseDomainManager<CustomerData, CustomerAda
 	 * @returns True if guest, defaults to true if no data
 	 */
 	isGuest(): boolean {
-		return this._store.get().data?.guest ?? true;
+		return this.store.get().data?.guest ?? true;
 	}
 
 	/**
@@ -180,6 +180,6 @@ export class CustomerManager extends BaseDomainManager<CustomerData, CustomerAda
 	 * @returns True if data is available
 	 */
 	hasData(): boolean {
-		return this._store.get().data !== null;
+		return this.store.get().data !== null;
 	}
 }

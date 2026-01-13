@@ -47,7 +47,7 @@ export class PaymentManager extends BaseDomainManager<PaymentListData, PaymentAd
 		});
 
 		if (options.adapter) {
-			this._adapter = options.adapter;
+			this.adapter = options.adapter;
 		}
 	}
 
@@ -56,10 +56,10 @@ export class PaymentManager extends BaseDomainManager<PaymentListData, PaymentAd
 	 * Actual payment data is fetched per-order via fetchForOrder.
 	 */
 	async initialize(): Promise<void> {
-		this._clog.debug("initialize start");
-		this._setData({ payments: [] });
-		this._setState("ready");
-		this._clog.debug("initialize complete");
+		this.clog.debug("initialize start");
+		this.setData({ payments: [] });
+		this.setState("ready");
+		this.clog.debug("initialize complete");
 	}
 
 	/**
@@ -71,32 +71,32 @@ export class PaymentManager extends BaseDomainManager<PaymentListData, PaymentAd
 	 * @emits payment:fetched - On successful fetch
 	 */
 	async fetchForOrder(orderId: UUID): Promise<PaymentData[]> {
-		this._clog.debug("fetchForOrder", { orderId });
-		if (!this._adapter) {
+		this.clog.debug("fetchForOrder", { orderId });
+		if (!this.adapter) {
 			return [];
 		}
 
-		this._setState("syncing");
+		this.setState("syncing");
 		try {
-			const data = await this._adapter.fetchForOrder(orderId, this._context);
+			const data = await this.adapter.fetchForOrder(orderId, this.context);
 			// Merge payments into our list (avoid duplicates by provider_reference)
-			const current = this._store.get().data ?? { payments: [] };
+			const current = this.store.get().data ?? { payments: [] };
 			const existingRefs = new Set(
 				current.payments.map((p) => p.provider_reference)
 			);
 			const newPayments = data.filter(
 				(p) => !existingRefs.has(p.provider_reference)
 			);
-			this._setData({ payments: [...current.payments, ...newPayments] });
-			this._markSynced();
-			this._emit({
+			this.setData({ payments: [...current.payments, ...newPayments] });
+			this.markSynced();
+			this.emit({
 				type: "payment:fetched",
 				domain: "payment",
 				timestamp: Date.now(),
 			});
 			return data;
 		} catch (e) {
-			this._setError({
+			this.setError({
 				code: "FETCH_FAILED",
 				message: e instanceof Error ? e.message : "Failed to fetch payments",
 				originalError: e,
@@ -114,16 +114,16 @@ export class PaymentManager extends BaseDomainManager<PaymentListData, PaymentAd
 	 * @returns The payment or null on error
 	 */
 	async fetchOne(paymentId: UUID): Promise<PaymentData | null> {
-		this._clog.debug("fetchOne", { paymentId });
-		if (!this._adapter) {
+		this.clog.debug("fetchOne", { paymentId });
+		if (!this.adapter) {
 			return null;
 		}
 
-		this._setState("syncing");
+		this.setState("syncing");
 		try {
-			const data = await this._adapter.fetchOne(paymentId, this._context);
+			const data = await this.adapter.fetchOne(paymentId, this.context);
 			// Add or update in our local list
-			const current = this._store.get().data ?? { payments: [] };
+			const current = this.store.get().data ?? { payments: [] };
 			const existingIndex = current.payments.findIndex(
 				(p) => p.provider_reference === data.provider_reference
 			);
@@ -136,12 +136,12 @@ export class PaymentManager extends BaseDomainManager<PaymentListData, PaymentAd
 				payments = [...current.payments, data];
 			}
 
-			this._setData({ payments });
-			this._markSynced();
+			this.setData({ payments });
+			this.markSynced();
 			return data;
 		} catch (e) {
 			const isNotFound = e instanceof HTTP_ERROR.NotFound;
-			this._setError({
+			this.setError({
 				code: isNotFound ? "NOT_FOUND" : "FETCH_FAILED",
 				message: e instanceof Error ? e.message : "Failed to fetch payment",
 				originalError: e,
@@ -157,7 +157,7 @@ export class PaymentManager extends BaseDomainManager<PaymentListData, PaymentAd
 	 * @returns Total payment count
 	 */
 	getPaymentCount(): number {
-		return this._store.get().data?.payments.length ?? 0;
+		return this.store.get().data?.payments.length ?? 0;
 	}
 
 	/**
@@ -166,7 +166,7 @@ export class PaymentManager extends BaseDomainManager<PaymentListData, PaymentAd
 	 * @returns Array of payments
 	 */
 	getPayments(): PaymentData[] {
-		return this._store.get().data?.payments ?? [];
+		return this.store.get().data?.payments ?? [];
 	}
 
 	/**
@@ -176,7 +176,7 @@ export class PaymentManager extends BaseDomainManager<PaymentListData, PaymentAd
 	 * @returns The payment or undefined if not found
 	 */
 	getPaymentByRef(providerReference: string): PaymentData | undefined {
-		return this._store.get().data?.payments.find(
+		return this.store.get().data?.payments.find(
 			(p) => p.provider_reference === providerReference
 		);
 	}
@@ -185,6 +185,6 @@ export class PaymentManager extends BaseDomainManager<PaymentListData, PaymentAd
 	 * Clear the local payment cache.
 	 */
 	clearCache(): void {
-		this._setData({ payments: [] });
+		this.setData({ payments: [] });
 	}
 }

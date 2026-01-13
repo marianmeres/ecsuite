@@ -45,29 +45,29 @@ export class WishlistManager extends BaseDomainManager<WishlistData, WishlistAda
 		});
 
 		if (options.adapter) {
-			this._adapter = options.adapter;
+			this.adapter = options.adapter;
 		}
 	}
 
 	/** Initialize wishlist (load from storage, then sync with server) */
 	async initialize(): Promise<void> {
-		this._clog.debug("initialize start");
-		const current = this._store.get();
+		this.clog.debug("initialize start");
+		const current = this.store.get();
 
 		// If we have persisted data, use it immediately
 		if (current.data) {
-			this._setState("ready");
+			this.setState("ready");
 		}
 
 		// Then sync with server if adapter is available
-		if (this._adapter) {
-			this._setState("syncing");
+		if (this.adapter) {
+			this.setState("syncing");
 			try {
-				const data = await this._adapter.fetch(this._context);
-				this._setData(data);
-				this._markSynced();
+				const data = await this.adapter.fetch(this.context);
+				this.setData(data);
+				this.markSynced();
 			} catch (e) {
-				this._setError({
+				this.setError({
 					code: "FETCH_FAILED",
 					message: e instanceof Error ? e.message : "Failed to fetch wishlist",
 					originalError: e,
@@ -77,11 +77,11 @@ export class WishlistManager extends BaseDomainManager<WishlistData, WishlistAda
 		} else {
 			// No adapter, just use local storage or create empty wishlist
 			if (!current.data) {
-				this._setData({ items: [] });
+				this.setData({ items: [] });
 			}
-			this._setState("ready");
+			this.setState("ready");
 		}
-		this._clog.debug("initialize complete", { itemCount: this.getItemCount() });
+		this.clog.debug("initialize complete", { itemCount: this.getItemCount() });
 	}
 
 	/**
@@ -92,9 +92,9 @@ export class WishlistManager extends BaseDomainManager<WishlistData, WishlistAda
 	 * @emits wishlist:item:added - On successful addition
 	 */
 	async addItem(productId: UUID): Promise<void> {
-		this._clog.debug("addItem", { productId });
+		this.clog.debug("addItem", { productId });
 		// Check if already in wishlist
-		const current = this._store.get().data ?? { items: [] };
+		const current = this.store.get().data ?? { items: [] };
 		if (current.items.some((i) => i.product_id === productId)) {
 			return; // Already in wishlist, no-op
 		}
@@ -104,23 +104,23 @@ export class WishlistManager extends BaseDomainManager<WishlistData, WishlistAda
 			added_at: Date.now(),
 		};
 
-		await this._withOptimisticUpdate(
+		await this.withOptimisticUpdate(
 			"addItem",
 			() => {
 				const items = [...current.items, newItem];
-				this._setData({ items }, false);
+				this.setData({ items }, false);
 			},
 			async () => {
-				if (this._adapter) {
-					return await this._adapter.addItem(productId, this._context);
+				if (this.adapter) {
+					return await this.adapter.addItem(productId, this.context);
 				}
-				return this._store.get().data;
+				return this.store.get().data;
 			},
 			(serverData) => {
 				if (serverData) {
-					this._setData(serverData);
+					this.setData(serverData);
 				}
-				this._emit({
+				this.emit({
 					type: "wishlist:item:added",
 					domain: "wishlist",
 					timestamp: Date.now(),
@@ -137,25 +137,25 @@ export class WishlistManager extends BaseDomainManager<WishlistData, WishlistAda
 	 * @emits wishlist:item:removed - On successful removal
 	 */
 	async removeItem(productId: UUID): Promise<void> {
-		this._clog.debug("removeItem", { productId });
-		await this._withOptimisticUpdate(
+		this.clog.debug("removeItem", { productId });
+		await this.withOptimisticUpdate(
 			"removeItem",
 			() => {
-				const current = this._store.get().data ?? { items: [] };
+				const current = this.store.get().data ?? { items: [] };
 				const newItems = current.items.filter((i) => i.product_id !== productId);
-				this._setData({ items: newItems }, false);
+				this.setData({ items: newItems }, false);
 			},
 			async () => {
-				if (this._adapter) {
-					return await this._adapter.removeItem(productId, this._context);
+				if (this.adapter) {
+					return await this.adapter.removeItem(productId, this.context);
 				}
-				return this._store.get().data;
+				return this.store.get().data;
 			},
 			(serverData) => {
 				if (serverData) {
-					this._setData(serverData);
+					this.setData(serverData);
 				}
-				this._emit({
+				this.emit({
 					type: "wishlist:item:removed",
 					domain: "wishlist",
 					timestamp: Date.now(),
@@ -173,7 +173,7 @@ export class WishlistManager extends BaseDomainManager<WishlistData, WishlistAda
 	 * @returns True if the item was added, false if removed
 	 */
 	async toggleItem(productId: UUID): Promise<boolean> {
-		this._clog.debug("toggleItem", { productId });
+		this.clog.debug("toggleItem", { productId });
 		if (this.hasProduct(productId)) {
 			await this.removeItem(productId);
 			return false;
@@ -189,20 +189,20 @@ export class WishlistManager extends BaseDomainManager<WishlistData, WishlistAda
 	 * @emits wishlist:cleared - On successful clear
 	 */
 	async clear(): Promise<void> {
-		this._clog.debug("clear");
-		await this._withOptimisticUpdate(
+		this.clog.debug("clear");
+		await this.withOptimisticUpdate(
 			"clear",
 			() => {
-				this._setData({ items: [] }, false);
+				this.setData({ items: [] }, false);
 			},
 			async () => {
-				if (this._adapter) {
-					return await this._adapter.clear(this._context);
+				if (this.adapter) {
+					return await this.adapter.clear(this.context);
 				}
 				return { items: [] };
 			},
 			() => {
-				this._emit({
+				this.emit({
 					type: "wishlist:cleared",
 					domain: "wishlist",
 					timestamp: Date.now(),
@@ -217,7 +217,7 @@ export class WishlistManager extends BaseDomainManager<WishlistData, WishlistAda
 	 * @returns Total item count
 	 */
 	getItemCount(): number {
-		const data = this._store.get().data;
+		const data = this.store.get().data;
 		return data?.items.length ?? 0;
 	}
 
@@ -228,7 +228,7 @@ export class WishlistManager extends BaseDomainManager<WishlistData, WishlistAda
 	 * @returns True if the product is in the wishlist
 	 */
 	hasProduct(productId: UUID): boolean {
-		const data = this._store.get().data;
+		const data = this.store.get().data;
 		return data?.items.some((i) => i.product_id === productId) ?? false;
 	}
 
@@ -239,7 +239,7 @@ export class WishlistManager extends BaseDomainManager<WishlistData, WishlistAda
 	 * @returns The wishlist item or undefined if not found
 	 */
 	getItem(productId: UUID): WishlistItem | undefined {
-		const data = this._store.get().data;
+		const data = this.store.get().data;
 		return data?.items.find((i) => i.product_id === productId);
 	}
 
@@ -249,7 +249,7 @@ export class WishlistManager extends BaseDomainManager<WishlistData, WishlistAda
 	 * @returns Array of product IDs
 	 */
 	getProductIds(): UUID[] {
-		const data = this._store.get().data;
+		const data = this.store.get().data;
 		return data?.items.map((i) => i.product_id) ?? [];
 	}
 
@@ -260,7 +260,7 @@ export class WishlistManager extends BaseDomainManager<WishlistData, WishlistAda
 	 * @returns Array of enriched wishlist items with product data
 	 */
 	async getEnrichedItems(productManager: ProductManager): Promise<EnrichedWishlistItem[]> {
-		const data = this._store.get().data;
+		const data = this.store.get().data;
 		if (!data?.items.length) return [];
 
 		const productIds = data.items.map((i) => i.product_id);
