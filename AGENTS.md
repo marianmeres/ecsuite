@@ -6,7 +6,7 @@ Machine-readable documentation for AI coding assistants.
 
 ```yaml
 name: "@marianmeres/ecsuite"
-version: "1.0.0"
+version: "1.1.1"
 type: "library"
 language: "typescript"
 runtime: "deno"
@@ -168,6 +168,17 @@ const myAdapter: CartAdapter = {
 };
 ```
 
+## Common Tasks
+
+### Add New Domain
+1. Create manager in `src/domains/`
+2. Add adapter interface in `src/types/adapter.ts`
+3. Export from `mod.ts`
+
+### Add New Event
+1. Add to `ECSuiteEventType` in `src/types/events.ts`
+2. Create interface in `src/types/events.ts`
+
 ## Dependencies
 
 ```yaml
@@ -186,7 +197,7 @@ dev:
 ## Testing
 
 ```bash
-deno test           # Run all tests
+deno test           # Run all tests (93 tests)
 deno test --watch   # Watch mode
 ```
 
