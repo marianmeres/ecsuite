@@ -157,12 +157,32 @@ export class CustomerManager extends BaseDomainManager<CustomerData, CustomerAda
 	}
 
 	/**
-	 * Get the customer's name.
+	 * Get the customer's first name.
 	 *
-	 * @returns Name or null if not loaded
+	 * @returns First name or null if not loaded
+	 */
+	getFirstName(): string | null {
+		return this.store.get().data?.first_name ?? null;
+	}
+
+	/**
+	 * Get the customer's last name.
+	 *
+	 * @returns Last name or null if not loaded
+	 */
+	getLastName(): string | null {
+		return this.store.get().data?.last_name ?? null;
+	}
+
+	/**
+	 * Get the customer's full name (first_name + last_name).
+	 *
+	 * @returns Full name or null if not loaded
 	 */
 	getName(): string | null {
-		return this.store.get().data?.name ?? null;
+		const data = this.store.get().data;
+		if (!data) return null;
+		return [data.first_name, data.last_name].filter(Boolean).join(" ") || null;
 	}
 
 	/**

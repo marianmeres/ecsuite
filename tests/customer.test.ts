@@ -17,7 +17,8 @@ Deno.test.afterEach(() => {
 // Helper to create test customer data
 const createTestCustomer = (overrides: Partial<CustomerData> = {}): CustomerData => ({
 	email: "test@example.com",
-	name: "John Doe",
+	first_name: "John",
+	last_name: "Doe",
 	phone: "+1234567890",
 	guest: false,
 	accepts_marketing: true,
@@ -52,7 +53,7 @@ Deno.test("CustomerManager initializes with adapter data", async () => {
 
 Deno.test("CustomerManager refresh reloads data", async () => {
 	const adapter = createMockCustomerAdapter({
-		initialData: createTestCustomer({ name: "Original" }),
+		initialData: createTestCustomer({ first_name: "Original", last_name: "" }),
 		delay: 10,
 	});
 
@@ -68,7 +69,7 @@ Deno.test("CustomerManager refresh reloads data", async () => {
 
 Deno.test("CustomerManager update modifies data", async () => {
 	const adapter = createMockCustomerAdapter({
-		initialData: createTestCustomer({ name: "Original" }),
+		initialData: createTestCustomer({ first_name: "Original", last_name: "" }),
 		delay: 10,
 	});
 
@@ -76,7 +77,7 @@ Deno.test("CustomerManager update modifies data", async () => {
 	await customer.initialize();
 	assertEquals(customer.getName(), "Original");
 
-	await customer.update({ name: "Updated" });
+	await customer.update({ first_name: "Updated" });
 
 	assertEquals(customer.getName(), "Updated");
 	assertEquals(customer.get().state, "ready");
@@ -84,7 +85,7 @@ Deno.test("CustomerManager update modifies data", async () => {
 
 Deno.test("CustomerManager update performs optimistic update", async () => {
 	const adapter = createMockCustomerAdapter({
-		initialData: createTestCustomer({ name: "Original" }),
+		initialData: createTestCustomer({ first_name: "Original", last_name: "" }),
 		delay: 100,
 	});
 
@@ -92,7 +93,7 @@ Deno.test("CustomerManager update performs optimistic update", async () => {
 	await customer.initialize();
 
 	// Start update (don't await yet)
-	const updatePromise = customer.update({ name: "Updated" });
+	const updatePromise = customer.update({ first_name: "Updated" });
 
 	// Check optimistic update (immediate)
 	await sleep(20);
@@ -106,7 +107,7 @@ Deno.test("CustomerManager update performs optimistic update", async () => {
 
 Deno.test("CustomerManager update rolls back on error", async () => {
 	const adapter = createMockCustomerAdapter({
-		initialData: createTestCustomer({ name: "Original" }),
+		initialData: createTestCustomer({ first_name: "Original", last_name: "" }),
 		delay: 10,
 		forceError: { operation: "update", message: "Update failed" },
 	});
@@ -114,7 +115,7 @@ Deno.test("CustomerManager update rolls back on error", async () => {
 	const customer = new CustomerManager({ adapter });
 	await customer.initialize();
 
-	await customer.update({ name: "Updated" });
+	await customer.update({ first_name: "Updated" });
 
 	const state = customer.get();
 	assertEquals(state.state, "error");
@@ -136,7 +137,7 @@ Deno.test("CustomerManager getEmail returns email", async () => {
 
 Deno.test("CustomerManager getName returns name", async () => {
 	const adapter = createMockCustomerAdapter({
-		initialData: createTestCustomer({ name: "Jane Doe" }),
+		initialData: createTestCustomer({ first_name: "Jane", last_name: "Doe" }),
 		delay: 10,
 	});
 

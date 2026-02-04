@@ -233,7 +233,8 @@ Deno.test("ECSuite full workflow", async () => {
 	const customerAdapter = createMockCustomerAdapter({
 		initialData: {
 			email: "test@example.com",
-			name: "Test User",
+			first_name: "Test",
+			last_name: "User",
 			guest: false,
 			accepts_marketing: true,
 		},
