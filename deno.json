@@ -16,7 +16,7 @@
     "@marianmeres/clog": "jsr:@marianmeres/clog@^3.15.2",
     "@marianmeres/collection-types": "jsr:@marianmeres/collection-types@^1.33.1",
     "@marianmeres/http-utils": "jsr:@marianmeres/http-utils@^2.5.1",
-    "@marianmeres/npmbuild": "jsr:@marianmeres/npmbuild@^1.10.0",
+    "@marianmeres/npmbuild": "jsr:@marianmeres/npmbuild@^1.11.0",
     "@marianmeres/pubsub": "jsr:@marianmeres/pubsub@^2.4.6",
     "@marianmeres/store": "jsr:@marianmeres/store@^2.4.4",
     "@std/assert": "jsr:@std/assert@^1.0.18",
