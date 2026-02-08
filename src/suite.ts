@@ -26,6 +26,7 @@ import type {
 	ECSuiteEvent,
 	ECSuiteEventType,
 	ErrorEvent,
+	InitializableDomainName,
 	StateChangedEvent,
 	SyncedEvent,
 } from "./types/events.ts";
@@ -63,6 +64,8 @@ export interface ECSuiteConfig {
 	productCacheTtl?: number;
 	/** Auto-initialize on creation (default: true) */
 	autoInitialize?: boolean;
+	/** Domains to initialize (default: all). Used by both autoInitialize and manual initialize(). */
+	initializeDomains?: InitializableDomainName[];
 }
 
 /**
@@ -154,22 +157,39 @@ export class ECSuite {
 
 		// Auto-initialize if configured
 		if (config.autoInitialize !== false) {
-			this.initialize();
+			this.initialize(config.initializeDomains);
 		}
 	}
 
-	/** Initialize all domains */
-	async initialize(): Promise<void> {
-		this.#clog.debug("initializing all domains");
-		await Promise.all([
-			this.cart.initialize(),
-			this.wishlist.initialize(),
-			this.order.initialize(),
-			this.customer.initialize(),
-			this.payment.initialize(),
-			// Note: ProductManager doesn't have initialize() - it's lazy-loaded
-		]);
-		this.#clog.debug("all domains initialized");
+	/** Initialize domains. When called without arguments, initializes all domains.
+	 * Pass an array of domain names to selectively initialize specific domains.
+	 *
+	 * @param domains - Optional list of domains to initialize (default: all)
+	 *
+	 * @example
+	 * ```typescript
+	 * // Initialize all domains (default)
+	 * await suite.initialize();
+	 *
+	 * // Initialize only cart and wishlist (skip auth-gated domains for guests)
+	 * await suite.initialize(["cart", "wishlist"]);
+	 *
+	 * // Later, initialize order domain when user authenticates
+	 * await suite.initialize(["order", "customer"]);
+	 * ```
+	 */
+	async initialize(domains?: InitializableDomainName[]): Promise<void> {
+		const all: InitializableDomainName[] = [
+			"cart",
+			"wishlist",
+			"order",
+			"customer",
+			"payment",
+		];
+		const toInit = domains ?? all;
+		this.#clog.debug("initializing domains", toInit);
+		await Promise.all(toInit.map((name) => this[name].initialize()));
+		this.#clog.debug("domains initialized", toInit);
 	}
 
 	/** Update context across all domains */

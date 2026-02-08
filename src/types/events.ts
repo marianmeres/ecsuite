@@ -17,6 +17,9 @@ export type DomainName =
 	| "payment"
 	| "product";
 
+/** Domain names that support initialize() (excludes product which is fully lazy) */
+export type InitializableDomainName = Exclude<DomainName, "product">;
+
 /** Event types emitted by the suite */
 export type ECSuiteEventType =
 	| "domain:state:changed"

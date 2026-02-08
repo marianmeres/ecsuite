@@ -169,6 +169,19 @@ const suite = createECSuite({
 });
 ```
 
+### Selective Initialization
+
+```typescript
+// Skip auth-gated domains for guest users
+const suite = createECSuite({
+	adapters: { cart: myCartAdapter, order: myOrderAdapter },
+	initializeDomains: ["cart", "wishlist", "payment"],
+});
+
+// Later, when user authenticates
+await suite.initialize(["order", "customer"]);
+```
+
 ### Subscribing to Store (Svelte-compatible)
 
 ```typescript

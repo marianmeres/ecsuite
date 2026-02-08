@@ -333,6 +333,89 @@ Deno.test("ECSuite full workflow", async () => {
 	assertEquals(suite.customer.get().state, "ready");
 });
 
+// --- selective initialization tests ---
+
+Deno.test("ECSuite initialize with domain allowlist only initializes specified domains", async () => {
+	const suite = createECSuite({
+		autoInitialize: false,
+		storage: {
+			type: "memory",
+			cartKey: `test-cart-${Date.now()}`,
+			wishlistKey: `test-wishlist-${Date.now()}`,
+		},
+	});
+
+	await suite.initialize(["cart", "wishlist"]);
+
+	assertEquals(suite.cart.get().state, "ready");
+	assertEquals(suite.wishlist.get().state, "ready");
+	// Non-initialized domains remain in initializing state
+	assertEquals(suite.order.get().state, "initializing");
+	assertEquals(suite.customer.get().state, "initializing");
+	assertEquals(suite.payment.get().state, "initializing");
+});
+
+Deno.test("ECSuite initialize without args still initializes all domains", async () => {
+	const suite = createECSuite({
+		autoInitialize: false,
+		storage: {
+			type: "memory",
+			cartKey: `test-cart-${Date.now()}`,
+			wishlistKey: `test-wishlist-${Date.now()}`,
+		},
+	});
+
+	await suite.initialize();
+
+	assertEquals(suite.cart.get().state, "ready");
+	assertEquals(suite.wishlist.get().state, "ready");
+	assertEquals(suite.order.get().state, "ready");
+	assertEquals(suite.customer.get().state, "ready");
+	assertEquals(suite.payment.get().state, "ready");
+});
+
+Deno.test("ECSuite initializeDomains config works with autoInitialize", async () => {
+	const suite = createECSuite({
+		autoInitialize: false, // we'll manually trigger to await
+		initializeDomains: ["cart", "payment"],
+		storage: {
+			type: "memory",
+			cartKey: `test-cart-${Date.now()}`,
+			wishlistKey: `test-wishlist-${Date.now()}`,
+		},
+	});
+
+	// Manually call to use the configured domains
+	await suite.initialize(["cart", "payment"]);
+
+	assertEquals(suite.cart.get().state, "ready");
+	assertEquals(suite.payment.get().state, "ready");
+	assertEquals(suite.order.get().state, "initializing");
+	assertEquals(suite.customer.get().state, "initializing");
+	assertEquals(suite.wishlist.get().state, "initializing");
+});
+
+Deno.test("ECSuite deferred domain initialization works", async () => {
+	const orderAdapter = createMockOrderAdapter({ delay: 10 });
+	const suite = createECSuite({
+		autoInitialize: false,
+		adapters: { order: orderAdapter },
+		storage: {
+			type: "memory",
+			cartKey: `test-cart-${Date.now()}`,
+			wishlistKey: `test-wishlist-${Date.now()}`,
+		},
+	});
+
+	// First init: skip order
+	await suite.initialize(["cart", "wishlist", "customer", "payment"]);
+	assertEquals(suite.order.get().state, "initializing");
+
+	// Later: init order on demand
+	await suite.initialize(["order"]);
+	assertEquals(suite.order.get().state, "ready");
+});
+
 // --- onBeforeSync / onAfterSync tests ---
 
 Deno.test("ECSuite onBeforeSync fires when domain starts syncing", async () => {
