@@ -33,7 +33,7 @@ export function createMockCartAdapter(options: MockCartAdapterOptions = {}): Car
 	const maybeThrow = (operation: string): void => {
 		if (options.forceError?.operation === operation) {
 			throw new HTTP_ERROR.BadRequest(
-				options.forceError.message ?? `Mock error for ${operation}`
+				options.forceError.message ?? `Mock error for ${operation}`,
 			);
 		}
 	};
@@ -50,7 +50,7 @@ export function createMockCartAdapter(options: MockCartAdapterOptions = {}): Car
 			maybeThrow("addItem");
 
 			const existingIndex = cart.items.findIndex(
-				(i) => i.product_id === item.product_id
+				(i) => i.product_id === item.product_id,
 			);
 			if (existingIndex >= 0) {
 				cart.items[existingIndex].quantity += item.quantity;
@@ -64,7 +64,7 @@ export function createMockCartAdapter(options: MockCartAdapterOptions = {}): Car
 		async updateItem(
 			productId: UUID,
 			quantity: number,
-			_ctx: DomainContext
+			_ctx: DomainContext,
 		): Promise<CartData> {
 			await wait();
 			maybeThrow("updateItem");

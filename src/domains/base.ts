@@ -5,12 +5,8 @@
  * Implements reactive state management, optimistic updates, and event emission.
  */
 
-import { createClog, type Clog } from "@marianmeres/clog";
-import {
-	createStore,
-	createStoragePersistor,
-	type StoreLike,
-} from "@marianmeres/store";
+import { type Clog, createClog } from "@marianmeres/clog";
+import { createStoragePersistor, createStore, type StoreLike } from "@marianmeres/store";
 import { createPubSub, type PubSub } from "@marianmeres/pubsub";
 import type {
 	DomainContext,
@@ -75,12 +71,12 @@ export abstract class BaseDomainManager<TData, TAdapter> {
 		if (options.storageKey && options.storageType) {
 			const persistor = createStoragePersistor<DomainStateWrapper<TData>>(
 				options.storageKey,
-				options.storageType
+				options.storageType,
 			);
 			const persisted = persistor.get();
 			this.store = createStore<DomainStateWrapper<TData>>(
 				persisted ?? initialState,
-				{ persist: persistor.set }
+				{ persist: persistor.set },
 			);
 		} else {
 			this.store = createStore<DomainStateWrapper<TData>>(initialState);
@@ -201,7 +197,7 @@ export abstract class BaseDomainManager<TData, TAdapter> {
 		optimisticUpdate: () => void,
 		serverSync: () => Promise<T>,
 		onSuccess?: (result: T) => void,
-		onError?: (error: DomainError) => void
+		onError?: (error: DomainError) => void,
 	): Promise<void> {
 		// Capture current state for rollback
 		const previousData = this.store.get().data;

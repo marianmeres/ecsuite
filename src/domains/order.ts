@@ -7,7 +7,11 @@
 
 import type { OrderData, UUID } from "@marianmeres/collection-types";
 import { HTTP_ERROR } from "@marianmeres/http-utils";
-import type { OrderAdapter, OrderCreatePayload } from "../types/adapter.ts";
+import type {
+	OrderAdapter,
+	OrderCreatePayload,
+	OrderCreateResult,
+} from "../types/adapter.ts";
 import { BaseDomainManager, type BaseDomainOptions } from "./base.ts";
 
 /** Order list data (array of orders) */
@@ -127,9 +131,11 @@ export class OrderManager extends BaseDomainManager<OrderListData, OrderAdapter>
 		try {
 			const data = await this.adapter.fetchOne(orderId, this.context);
 			// Update the order in our local list
+			// TODO: fetchAll/fetchOne return OrderData which lacks model_id;
+			// matching by model_id relies on the index signature on OrderData
 			const current = this.store.get().data ?? { orders: [] };
 			const existingIndex = current.orders.findIndex(
-				(o) => (o as OrderData & { model_id?: UUID }).model_id === orderId
+				(o) => o.model_id === orderId,
 			);
 
 			let orders: OrderData[];
@@ -160,10 +166,12 @@ export class OrderManager extends BaseDomainManager<OrderListData, OrderAdapter>
 	 * The order status is assigned by the server.
 	 *
 	 * @param orderData - The order data (without status)
-	 * @returns The created order or null on error
+	 * @returns The created order result (with model_id) or null on error
 	 * @emits order:created - On successful creation
 	 */
-	async create(orderData: OrderCreatePayload): Promise<OrderData | null> {
+	async create(
+		orderData: OrderCreatePayload,
+	): Promise<OrderCreateResult | null> {
 		this.clog.debug("create");
 		if (!this.adapter) {
 			return null;
@@ -171,18 +179,23 @@ export class OrderManager extends BaseDomainManager<OrderListData, OrderAdapter>
 
 		this.setState("syncing");
 		try {
-			const data = await this.adapter.create(orderData, this.context);
+			const result = await this.adapter.create(
+				orderData,
+				this.context,
+			);
 			// Add the new order to our local list
 			const current = this.store.get().data ?? { orders: [] };
-			this.setData({ orders: [...current.orders, data] });
+			this.setData({
+				orders: [...current.orders, result.data],
+			});
 			this.markSynced();
 			this.emit({
 				type: "order:created",
 				domain: "order",
 				timestamp: Date.now(),
-				orderId: (data as OrderData & { model_id?: UUID }).model_id,
+				orderId: result.model_id,
 			});
-			return data;
+			return result;
 		} catch (e) {
 			this.setError({
 				code: "CREATE_FAILED",

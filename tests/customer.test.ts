@@ -198,7 +198,100 @@ Deno.test("CustomerManager handles fetch error on initialize", async () => {
 		forceError: { operation: "fetch", message: "Network error" },
 	});
 
-	const customer = new CustomerManager({ adapter });
+	const customer = new CustomerManager({ adapter, context: { customerId: "c1" } });
+	await customer.initialize();
+
+	const state = customer.get();
+	assertEquals(state.state, "error");
+	assertEquals(state.error?.operation, "initialize");
+});
+
+// --- fetchBySession tests ---
+
+Deno.test("CustomerManager initializes via fetchBySession when no customerId", async () => {
+	const adapter = createMockCustomerAdapter({
+		guestData: createTestCustomer({ email: "guest@test.com", guest: true }),
+		delay: 10,
+	});
+
+	// No customerId, only sessionId
+	const customer = new CustomerManager({
+		adapter,
+		context: { sessionId: "sess-1" },
+	});
+	await customer.initialize();
+
+	const state = customer.get();
+	assertEquals(state.state, "ready");
+	assertExists(state.data);
+	assertEquals(state.data.email, "guest@test.com");
+	assertEquals(state.data.guest, true);
+});
+
+Deno.test("CustomerManager fetchBySession returns null for unknown session", async () => {
+	const adapter = createMockCustomerAdapter({
+		guestData: undefined, // enables fetchBySession, but returns null
+		delay: 10,
+	});
+
+	const customer = new CustomerManager({
+		adapter,
+		context: { sessionId: "unknown-sess" },
+	});
+	await customer.initialize();
+
+	const state = customer.get();
+	assertEquals(state.state, "ready");
+	assertEquals(state.data, null);
+	assertEquals(customer.hasData(), false);
+});
+
+Deno.test("CustomerManager refresh uses fetchBySession fallback", async () => {
+	const adapter = createMockCustomerAdapter({
+		guestData: createTestCustomer({ email: "guest@test.com", guest: true }),
+		delay: 10,
+	});
+
+	const customer = new CustomerManager({
+		adapter,
+		context: { sessionId: "sess-1" },
+	});
+	await customer.initialize();
+	assertEquals(customer.getEmail(), "guest@test.com");
+
+	// Refresh should also use fetchBySession
+	await customer.refresh();
+	assertEquals(customer.getEmail(), "guest@test.com");
+	assertEquals(customer.get().state, "ready");
+});
+
+Deno.test("CustomerManager prefers fetch when customerId is present", async () => {
+	const adapter = createMockCustomerAdapter({
+		initialData: createTestCustomer({ email: "registered@test.com" }),
+		guestData: createTestCustomer({ email: "guest@test.com", guest: true }),
+		delay: 10,
+	});
+
+	const customer = new CustomerManager({
+		adapter,
+		context: { customerId: "cust-1", sessionId: "sess-1" },
+	});
+	await customer.initialize();
+
+	// Should use fetch() (customerId present), not fetchBySession
+	assertEquals(customer.getEmail(), "registered@test.com");
+});
+
+Deno.test("CustomerManager handles fetchBySession error", async () => {
+	const adapter = createMockCustomerAdapter({
+		delay: 10,
+		forceError: { operation: "fetchBySession", message: "Session error" },
+	});
+
+	const customer = new CustomerManager({
+		adapter,
+		context: { sessionId: "sess-1" },
+	});
 	await customer.initialize();
 
 	const state = customer.get();

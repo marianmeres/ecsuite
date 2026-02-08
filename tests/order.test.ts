@@ -109,16 +109,18 @@ Deno.test("OrderManager fetchOne returns null for not found", async () => {
 	assertEquals(state.error?.code, "NOT_FOUND");
 });
 
-Deno.test("OrderManager create adds new order", async () => {
+Deno.test("OrderManager create adds new order with model_id", async () => {
 	const adapter = createMockOrderAdapter({ delay: 10 });
 
 	const orders = new OrderManager({ adapter });
 	await orders.initialize();
 	assertEquals(orders.getOrderCount(), 0);
 
-	const newOrder = await orders.create(createTestOrder());
-	assertExists(newOrder);
-	assertEquals(newOrder.status, "pending"); // Server sets status
+	const result = await orders.create(createTestOrder());
+	assertExists(result);
+	assertExists(result.model_id);
+	assertExists(result.data);
+	assertEquals(result.data.status, "pending"); // Server sets status
 	assertEquals(orders.getOrderCount(), 1);
 });
 
@@ -153,7 +155,10 @@ Deno.test("OrderManager getOrderCount returns count", async () => {
 
 Deno.test("OrderManager getOrders returns all orders", async () => {
 	const adapter = createMockOrderAdapter({
-		initialData: [createTestOrder({ status: "pending" }), createTestOrder({ status: "paid" })],
+		initialData: [
+			createTestOrder({ status: "pending" }),
+			createTestOrder({ status: "paid" }),
+		],
 		delay: 10,
 	});
 
@@ -168,7 +173,10 @@ Deno.test("OrderManager getOrders returns all orders", async () => {
 
 Deno.test("OrderManager getOrderByIndex returns order at index", async () => {
 	const adapter = createMockOrderAdapter({
-		initialData: [createTestOrder({ status: "pending" }), createTestOrder({ status: "paid" })],
+		initialData: [
+			createTestOrder({ status: "pending" }),
+			createTestOrder({ status: "paid" }),
+		],
 		delay: 10,
 	});
 

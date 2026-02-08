@@ -6,7 +6,7 @@ Machine-readable documentation for AI coding assistants.
 
 ```yaml
 name: "@marianmeres/ecsuite"
-version: "1.1.1"
+version: "1.1.4"
 type: "library"
 language: "typescript"
 runtime: "deno"
@@ -17,6 +17,7 @@ license: "MIT"
 ## Purpose
 
 E-commerce frontend UI state management library providing:
+
 - Optimistic updates with automatic rollback
 - Svelte-compatible reactive stores
 - Pluggable adapter pattern for server communication
@@ -29,9 +30,9 @@ E-commerce frontend UI state management library providing:
 ECSuite (orchestrator)
 ├── CartManager      [localStorage, optimistic updates]
 ├── WishlistManager  [localStorage, optimistic updates]
-├── OrderManager     [server-only, read + create]
-├── CustomerManager  [server-only, read + update]
-├── PaymentManager   [server-only, read-only]
+├── OrderManager     [server-only, read + create (returns model_id)]
+├── CustomerManager  [server-only, read + update + fetchBySession]
+├── PaymentManager   [server-only, read + initiate + capture]
 └── ProductManager   [in-memory cache with TTL]
 ```
 
@@ -79,36 +80,67 @@ tests/
 
 ```typescript
 // Main
-export { ECSuite, createECSuite, ECSuiteConfig } from "./suite.ts";
+export { createECSuite, ECSuite, ECSuiteConfig } from "./suite.ts";
 
 // Types
 export {
-  DomainState, DomainError, DomainStateWrapper, DomainContext,
-  WishlistItem, WishlistData, EnrichedCartItem, EnrichedWishlistItem,
-  CartAdapter, WishlistAdapter, OrderAdapter,
-  CustomerAdapter, PaymentAdapter, ProductAdapter, OrderCreatePayload,
-  DomainName, ECSuiteEventType, ECSuiteEvent, /* ...event interfaces */
+	CartAdapter,
+	CustomerAdapter,
+	DomainContext,
+	DomainError,
+	DomainName,
+	DomainState,
+	DomainStateWrapper,
+	ECSuiteEvent, /* ...event interfaces */
+	ECSuiteEventType,
+	EnrichedCartItem,
+	EnrichedWishlistItem,
+	OrderAdapter,
+	OrderCreatePayload,
+	OrderCreateResult,
+	PaymentAdapter,
+	PaymentInitConfig,
+	ProductAdapter,
+	WishlistAdapter,
+	WishlistData,
+	WishlistItem,
 } from "./types/mod.ts";
 
 // Domain Managers
 export {
-  BaseDomainManager, BaseDomainOptions, StorageType,
-  CartManager, CartManagerOptions,
-  WishlistManager, WishlistManagerOptions,
-  OrderManager, OrderManagerOptions, OrderListData,
-  CustomerManager, CustomerManagerOptions,
-  PaymentManager, PaymentManagerOptions, PaymentListData,
-  ProductManager, ProductManagerOptions,
+	BaseDomainManager,
+	BaseDomainOptions,
+	CartManager,
+	CartManagerOptions,
+	CustomerManager,
+	CustomerManagerOptions,
+	OrderListData,
+	OrderManager,
+	OrderManagerOptions,
+	PaymentListData,
+	PaymentManager,
+	PaymentManagerOptions,
+	ProductManager,
+	ProductManagerOptions,
+	StorageType,
+	WishlistManager,
+	WishlistManagerOptions,
 } from "./domains/mod.ts";
 
 // Mock Adapters
 export {
-  createMockCartAdapter, MockCartAdapterOptions,
-  createMockWishlistAdapter, MockWishlistAdapterOptions,
-  createMockOrderAdapter, MockOrderAdapterOptions,
-  createMockCustomerAdapter, MockCustomerAdapterOptions,
-  createMockPaymentAdapter, MockPaymentAdapterOptions,
-  createMockProductAdapter, MockProductAdapterOptions,
+	createMockCartAdapter,
+	createMockCustomerAdapter,
+	createMockOrderAdapter,
+	createMockPaymentAdapter,
+	createMockProductAdapter,
+	createMockWishlistAdapter,
+	MockCartAdapterOptions,
+	MockCustomerAdapterOptions,
+	MockOrderAdapterOptions,
+	MockPaymentAdapterOptions,
+	MockProductAdapterOptions,
+	MockWishlistAdapterOptions,
 } from "./adapters/mod.ts";
 ```
 
@@ -129,11 +161,11 @@ State transitions:
 
 ```typescript
 const suite = createECSuite({
-  context: { customerId: "uuid" },
-  adapters: { cart: myCartAdapter },
-  storage: { type: "local" },
-  productCacheTtl: 300000,
-  autoInitialize: true,
+	context: { customerId: "uuid" },
+	adapters: { cart: myCartAdapter },
+	storage: { type: "local" },
+	productCacheTtl: 300000,
+	autoInitialize: true,
 });
 ```
 
@@ -141,16 +173,26 @@ const suite = createECSuite({
 
 ```typescript
 suite.cart.subscribe((state) => {
-  // state: { state, data, error, lastSyncedAt }
+	// state: { state, data, error, lastSyncedAt }
 });
 ```
 
 ### Event Handling
 
 ```typescript
-suite.on("cart:item:added", (event) => { /* ... */ });
-suite.onAny(({ event, data }) => { /* ... */ });
-suite.once("order:created", (event) => { /* ... */ });
+suite.on("cart:item:added", (event) => {/* ... */});
+suite.onAny(({ event, data }) => {/* ... */});
+suite.once("order:created", (event) => {/* ... */});
+```
+
+### Operation Hooks
+
+```typescript
+// Fire when any domain starts syncing
+const unsub1 = suite.onBeforeSync(({ domain, previousState }) => {/* ... */});
+
+// Fire when any domain completes or fails an operation
+const unsub2 = suite.onAfterSync(({ domain, success, error }) => {/* ... */});
 ```
 
 ### Implementing Adapter
@@ -159,23 +201,25 @@ suite.once("order:created", (event) => { /* ... */ });
 import { HTTP_ERROR } from "@marianmeres/http-utils";
 
 const myAdapter: CartAdapter = {
-  async fetch(ctx) {
-    const res = await fetch(`/api/cart`);
-    if (!res.ok) throw new HTTP_ERROR.BadRequest("Failed to fetch");
-    return await res.json(); // returns CartData directly
-  },
-  // ... other methods throw HTTP_ERROR on failure
+	async fetch(ctx) {
+		const res = await fetch(`/api/cart`);
+		if (!res.ok) throw new HTTP_ERROR.BadRequest("Failed to fetch");
+		return await res.json(); // returns CartData directly
+	},
+	// ... other methods throw HTTP_ERROR on failure
 };
 ```
 
 ## Common Tasks
 
 ### Add New Domain
+
 1. Create manager in `src/domains/`
 2. Add adapter interface in `src/types/adapter.ts`
 3. Export from `mod.ts`
 
 ### Add New Event
+
 1. Add to `ECSuiteEventType` in `src/types/events.ts`
 2. Create interface in `src/types/events.ts`
 
@@ -183,25 +227,26 @@ const myAdapter: CartAdapter = {
 
 ```yaml
 runtime:
-  "@marianmeres/clog": "^3.15.0"
-  "@marianmeres/collection-types": "^1.9.0"
-  "@marianmeres/http-utils": "^2.5.1"
-  "@marianmeres/pubsub": "^2.4.5"
-  "@marianmeres/store": "^2.4.2"
+    "@marianmeres/clog": "^3.15.0"
+    "@marianmeres/collection-types": "^1.9.0"
+    "@marianmeres/http-utils": "^2.5.1"
+    "@marianmeres/pubsub": "^2.4.5"
+    "@marianmeres/store": "^2.4.2"
 dev:
-  "@std/assert": "^1.0.16"
-  "@std/fs": "^1.0.20"
-  "@std/path": "^1.1.3"
+    "@std/assert": "^1.0.16"
+    "@std/fs": "^1.0.20"
+    "@std/path": "^1.1.3"
 ```
 
 ## Testing
 
 ```bash
-deno test           # Run all tests (93 tests)
+deno test           # Run all tests (109 tests)
 deno test --watch   # Watch mode
 ```
 
 Test utilities:
+
 - Mock adapters with configurable delay and error injection
 - Memory storage type for isolated tests
 
@@ -230,4 +275,12 @@ deno publish           # Publish to JSR
 
 4. **Event System**: Shared PubSub instance passed through ECSuite constructor. Events typed with discriminated union.
 
-5. **Context**: DomainContext (customerId, sessionId) passed to all adapter methods for server-side identification.
+5. **Context**: DomainContext (customerId, sessionId, + arbitrary properties via index signature) passed to all adapter methods for server-side identification.
+
+6. **OrderCreateResult**: `OrderAdapter.create()` returns `{ model_id, data }` so consumers always get the server-assigned model ID.
+
+7. **Payment Write Ops**: `PaymentAdapter.initiate?()` and `capture?()` are optional methods. `PaymentManager` null-checks before calling, returns null when unavailable.
+
+8. **Guest Checkout**: `CustomerAdapter.fetchBySession?()` is optional. `CustomerManager` uses it when `customerId` is absent in context, falls back to `fetch()` when unavailable.
+
+9. **Operation Hooks**: `ECSuite.onBeforeSync()` and `onAfterSync()` are convenience wrappers over the existing event system (no changes to BaseDomainManager).

@@ -15,7 +15,7 @@ Deno.test.afterEach(() => {
 // Helper to create test product data with model_id
 const createTestProduct = (
 	id: UUID,
-	overrides: Partial<ProductData> = {}
+	overrides: Partial<ProductData> = {},
 ): ProductData & { model_id: UUID } => ({
 	model_id: id,
 	name: `Product ${id}`,

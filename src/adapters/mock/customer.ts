@@ -11,11 +11,13 @@ import type { DomainContext } from "../../types/state.ts";
 export interface MockCustomerAdapterOptions {
 	/** Initial customer data */
 	initialData?: CustomerData;
+	/** Guest customer data returned by fetchBySession */
+	guestData?: CustomerData;
 	/** Simulated network delay in ms (default: 50) */
 	delay?: number;
 	/** Force errors for testing */
 	forceError?: {
-		operation?: "fetch" | "update";
+		operation?: "fetch" | "fetchBySession" | "update";
 		code?: string;
 		message?: string;
 	};
@@ -23,11 +25,14 @@ export interface MockCustomerAdapterOptions {
 
 /** Create a mock customer adapter for testing */
 export function createMockCustomerAdapter(
-	options: MockCustomerAdapterOptions = {}
+	options: MockCustomerAdapterOptions = {},
 ): CustomerAdapter {
 	const delay = options.delay ?? 50;
 	let customer: CustomerData | null = options.initialData
 		? structuredClone(options.initialData)
+		: null;
+	const guestCustomer: CustomerData | null = options.guestData
+		? structuredClone(options.guestData)
 		: null;
 
 	const wait = () => new Promise<void>((r) => setTimeout(r, delay));
@@ -35,12 +40,16 @@ export function createMockCustomerAdapter(
 	const maybeThrow = (operation: string): void => {
 		if (options.forceError?.operation === operation) {
 			throw new HTTP_ERROR.BadRequest(
-				options.forceError.message ?? `Mock error for ${operation}`
+				options.forceError.message ??
+					`Mock error for ${operation}`,
 			);
 		}
 	};
 
-	return {
+	const hasFetchBySession = "guestData" in options ||
+		options.forceError?.operation === "fetchBySession";
+
+	const adapter: CustomerAdapter = {
 		async fetch(_ctx: DomainContext): Promise<CustomerData> {
 			await wait();
 			maybeThrow("fetch");
@@ -54,7 +63,7 @@ export function createMockCustomerAdapter(
 
 		async update(
 			data: Partial<CustomerData>,
-			_ctx: DomainContext
+			_ctx: DomainContext,
 		): Promise<CustomerData> {
 			await wait();
 			maybeThrow("update");
@@ -67,4 +76,18 @@ export function createMockCustomerAdapter(
 			return structuredClone(customer);
 		},
 	};
+
+	if (hasFetchBySession) {
+		adapter.fetchBySession = async (
+			_ctx: DomainContext,
+		): Promise<CustomerData | null> => {
+			await wait();
+			maybeThrow("fetchBySession");
+
+			if (!guestCustomer) return null;
+			return structuredClone(guestCustomer);
+		};
+	}
+
+	return adapter;
 }

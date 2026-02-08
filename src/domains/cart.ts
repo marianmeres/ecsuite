@@ -91,14 +91,17 @@ export class CartManager extends BaseDomainManager<CartData, CartAdapter> {
 	 * @emits cart:item:added - On successful addition
 	 */
 	async addItem(item: CartItem): Promise<void> {
-		this.clog.debug("addItem", { productId: item.product_id, quantity: item.quantity });
+		this.clog.debug("addItem", {
+			productId: item.product_id,
+			quantity: item.quantity,
+		});
 		await this.withOptimisticUpdate(
 			"addItem",
 			() => {
 				// Optimistic: update local state immediately
 				const current = this.store.get().data ?? { items: [] };
 				const existingIndex = current.items.findIndex(
-					(i) => i.product_id === item.product_id
+					(i) => i.product_id === item.product_id,
 				);
 
 				let newItems: CartItem[];
@@ -135,7 +138,7 @@ export class CartManager extends BaseDomainManager<CartData, CartAdapter> {
 					productId: item.product_id,
 					quantity: item.quantity,
 				});
-			}
+			},
 		);
 	}
 
@@ -168,7 +171,11 @@ export class CartManager extends BaseDomainManager<CartData, CartAdapter> {
 			},
 			async () => {
 				if (this.adapter) {
-					return await this.adapter.updateItem(productId, quantity, this.context);
+					return await this.adapter.updateItem(
+						productId,
+						quantity,
+						this.context,
+					);
 				}
 				return this.store.get().data;
 			},
@@ -184,7 +191,7 @@ export class CartManager extends BaseDomainManager<CartData, CartAdapter> {
 					previousQuantity,
 					newQuantity: quantity,
 				});
-			}
+			},
 		);
 	}
 
@@ -219,7 +226,7 @@ export class CartManager extends BaseDomainManager<CartData, CartAdapter> {
 					timestamp: Date.now(),
 					productId,
 				});
-			}
+			},
 		);
 	}
 
@@ -247,7 +254,7 @@ export class CartManager extends BaseDomainManager<CartData, CartAdapter> {
 					domain: "cart",
 					timestamp: Date.now(),
 				});
-			}
+			},
 		);
 	}
 

@@ -5,7 +5,12 @@
  * Core types for domain state management and data structures.
  */
 
-import type { CartItem, ProductData, UUID } from "@marianmeres/collection-types";
+import type {
+	CartItem,
+	ProductData,
+	UUID,
+	WishlistItem,
+} from "@marianmeres/collection-types";
 
 /** Domain state progression */
 export type DomainState = "initializing" | "ready" | "syncing" | "error";
@@ -40,20 +45,12 @@ export interface DomainContext {
 	customerId?: UUID;
 	/** Optional session ID */
 	sessionId?: UUID;
+	/** Additional context properties for adapter-specific needs */
+	[key: string]: unknown;
 }
 
-/** Wishlist item structure (not yet in collection-types) */
-export interface WishlistItem {
-	/** Product model_id reference */
-	product_id: UUID;
-	/** Timestamp when item was added */
-	added_at?: number;
-}
-
-/** Wishlist data structure (not yet in collection-types) */
-export interface WishlistData {
-	items: WishlistItem[];
-}
+// WishlistItem and WishlistData are now provided by @marianmeres/collection-types
+export type { WishlistData, WishlistItem } from "@marianmeres/collection-types";
 
 /** Cart item enriched with product data */
 export interface EnrichedCartItem extends CartItem {

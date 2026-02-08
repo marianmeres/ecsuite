@@ -22,7 +22,7 @@ Deno.test(
 		const state = cart.get();
 		assertEquals(state.state, "ready");
 		assertEquals(state.data?.items.length, 0);
-	}
+	},
 );
 
 Deno.test("CartManager initializes with adapter data", async () => {
@@ -70,7 +70,7 @@ Deno.test(
 		const state = cart.get();
 		assertEquals(state.data?.items.length, 1);
 		assertEquals(state.data?.items[0].quantity, 5);
-	}
+	},
 );
 
 Deno.test("CartManager addItem performs optimistic update", async () => {

@@ -6,7 +6,12 @@
  */
 
 import { createClog } from "@marianmeres/clog";
-import { createPubSub, type PubSub, type Subscriber, type Unsubscriber } from "@marianmeres/pubsub";
+import {
+	createPubSub,
+	type PubSub,
+	type Subscriber,
+	type Unsubscriber,
+} from "@marianmeres/pubsub";
 import type {
 	CartAdapter,
 	CustomerAdapter,
@@ -15,8 +20,15 @@ import type {
 	ProductAdapter,
 	WishlistAdapter,
 } from "./types/adapter.ts";
-import type { DomainContext } from "./types/state.ts";
-import type { ECSuiteEventType, ECSuiteEvent } from "./types/events.ts";
+import type { DomainContext, DomainError, DomainState } from "./types/state.ts";
+import type {
+	DomainName,
+	ECSuiteEvent,
+	ECSuiteEventType,
+	ErrorEvent,
+	StateChangedEvent,
+	SyncedEvent,
+} from "./types/events.ts";
 import { CartManager } from "./domains/cart.ts";
 import { WishlistManager } from "./domains/wishlist.ts";
 import { OrderManager } from "./domains/order.ts";
@@ -183,13 +195,77 @@ export class ECSuite {
 	}
 
 	/** Subscribe to all events (receives { event, data } envelope) */
-	onAny(callback: (envelope: { event: string; data: ECSuiteEvent }) => void): Unsubscriber {
+	onAny(
+		callback: (envelope: { event: string; data: ECSuiteEvent }) => void,
+	): Unsubscriber {
 		return this.#pubsub.subscribe("*", callback);
 	}
 
 	/** Subscribe once to an event */
 	once(eventType: ECSuiteEventType, callback: Subscriber): Unsubscriber {
 		return this.#pubsub.subscribeOnce(eventType, callback);
+	}
+
+	/**
+	 * Register a callback for when any domain starts an operation.
+	 * Fires on every state transition to "syncing".
+	 *
+	 * @param callback - Called with domain name and previous state
+	 * @returns Unsubscribe function
+	 */
+	onBeforeSync(
+		callback: (info: {
+			domain: DomainName;
+			previousState: DomainState;
+		}) => void,
+	): Unsubscriber {
+		return this.#pubsub.subscribe(
+			"domain:state:changed",
+			(event: StateChangedEvent) => {
+				if (event.newState === "syncing") {
+					callback({
+						domain: event.domain,
+						previousState: event.previousState,
+					});
+				}
+			},
+		);
+	}
+
+	/**
+	 * Register a callback for when any domain completes or fails
+	 * an operation.
+	 *
+	 * @param callback - Called with operation result info
+	 * @returns Unsubscribe function
+	 */
+	onAfterSync(
+		callback: (info: {
+			domain: DomainName;
+			success: boolean;
+			error?: DomainError;
+		}) => void,
+	): Unsubscriber {
+		const unsub1 = this.#pubsub.subscribe(
+			"domain:synced",
+			(event: SyncedEvent) => {
+				callback({ domain: event.domain, success: true });
+			},
+		);
+		const unsub2 = this.#pubsub.subscribe(
+			"domain:error",
+			(event: ErrorEvent) => {
+				callback({
+					domain: event.domain,
+					success: false,
+					error: event.error,
+				});
+			},
+		);
+		return () => {
+			unsub1();
+			unsub2();
+		};
 	}
 
 	/** Reset all domains to initial state */

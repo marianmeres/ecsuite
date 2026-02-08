@@ -23,7 +23,7 @@ export interface MockWishlistAdapterOptions {
 
 /** Create a mock wishlist adapter for testing */
 export function createMockWishlistAdapter(
-	options: MockWishlistAdapterOptions = {}
+	options: MockWishlistAdapterOptions = {},
 ): WishlistAdapter {
 	const delay = options.delay ?? 50;
 	let wishlist: WishlistData = options.initialData
@@ -35,7 +35,7 @@ export function createMockWishlistAdapter(
 	const maybeThrow = (operation: string): void => {
 		if (options.forceError?.operation === operation) {
 			throw new HTTP_ERROR.BadRequest(
-				options.forceError.message ?? `Mock error for ${operation}`
+				options.forceError.message ?? `Mock error for ${operation}`,
 			);
 		}
 	};
@@ -78,7 +78,10 @@ export function createMockWishlistAdapter(
 			return structuredClone(wishlist);
 		},
 
-		async sync(newWishlist: WishlistData, _ctx: DomainContext): Promise<WishlistData> {
+		async sync(
+			newWishlist: WishlistData,
+			_ctx: DomainContext,
+		): Promise<WishlistData> {
 			await wait();
 			maybeThrow("sync");
 

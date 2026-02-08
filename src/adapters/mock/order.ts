@@ -4,7 +4,11 @@
 
 import type { OrderData, UUID } from "@marianmeres/collection-types";
 import { HTTP_ERROR } from "@marianmeres/http-utils";
-import type { OrderAdapter, OrderCreatePayload } from "../../types/adapter.ts";
+import type {
+	OrderAdapter,
+	OrderCreatePayload,
+	OrderCreateResult,
+} from "../../types/adapter.ts";
 import type { DomainContext } from "../../types/state.ts";
 
 /** Mock order adapter options */
@@ -23,14 +27,14 @@ export interface MockOrderAdapterOptions {
 
 /** Create a mock order adapter for testing */
 export function createMockOrderAdapter(
-	options: MockOrderAdapterOptions = {}
+	options: MockOrderAdapterOptions = {},
 ): OrderAdapter {
 	const delay = options.delay ?? 50;
 	let orders: (OrderData & { model_id: UUID })[] = options.initialData
 		? options.initialData.map((o, i) => ({
-				...structuredClone(o),
-				model_id: `order-${i + 1}`,
-		  }))
+			...structuredClone(o),
+			model_id: `order-${i + 1}`,
+		}))
 		: [];
 
 	let orderIdCounter = orders.length;
@@ -40,7 +44,7 @@ export function createMockOrderAdapter(
 	const maybeThrow = (operation: string): void => {
 		if (options.forceError?.operation === operation) {
 			throw new HTTP_ERROR.BadRequest(
-				options.forceError.message ?? `Mock error for ${operation}`
+				options.forceError.message ?? `Mock error for ${operation}`,
 			);
 		}
 	};
@@ -64,18 +68,21 @@ export function createMockOrderAdapter(
 			return structuredClone(order);
 		},
 
-		async create(orderData: OrderCreatePayload, _ctx: DomainContext): Promise<OrderData> {
+		async create(
+			orderData: OrderCreatePayload,
+			_ctx: DomainContext,
+		): Promise<OrderCreateResult> {
 			await wait();
 			maybeThrow("create");
 
-			const newOrder = {
+			const model_id = `order-${++orderIdCounter}` as UUID;
+			const data = {
 				...structuredClone(orderData),
 				status: "pending" as const,
-				model_id: `order-${++orderIdCounter}`,
-			} as OrderData & { model_id: UUID };
+			} as OrderData;
 
-			orders.push(newOrder);
-			return structuredClone(newOrder);
+			orders.push({ ...data, model_id });
+			return { model_id, data: structuredClone(data) };
 		},
 	};
 }

@@ -103,6 +103,28 @@ Deno.test("ECSuite setContext updates all domains", async () => {
 	assertEquals(suite.wishlist.getContext().customerId, "updated");
 });
 
+Deno.test("ECSuite setContext supports custom properties", () => {
+	const suite = createECSuite({
+		autoInitialize: false,
+		context: { customerId: "cust-1" },
+		storage: { type: "memory" },
+	});
+
+	suite.setContext({
+		orderId: "order-123",
+		checkoutToken: "tok_abc",
+	});
+
+	const ctx = suite.getContext();
+	assertEquals(ctx.customerId, "cust-1");
+	assertEquals(ctx.orderId, "order-123");
+	assertEquals(ctx.checkoutToken, "tok_abc");
+
+	// Verify propagation to domains
+	assertEquals(suite.cart.getContext().orderId, "order-123");
+	assertEquals(suite.order.getContext().checkoutToken, "tok_abc");
+});
+
 Deno.test("ECSuite on subscribes to events", async () => {
 	const events: ECSuiteEvent[] = [];
 
@@ -299,6 +321,9 @@ Deno.test("ECSuite full workflow", async () => {
 	});
 
 	assertExists(order);
+	assertExists(order.model_id);
+	assertExists(order.data);
+	assertEquals(order.data.status, "pending");
 	assertEquals(suite.order.getOrderCount(), 1);
 
 	// All domains should be ready
@@ -306,4 +331,116 @@ Deno.test("ECSuite full workflow", async () => {
 	assertEquals(suite.wishlist.get().state, "ready");
 	assertEquals(suite.order.get().state, "ready");
 	assertEquals(suite.customer.get().state, "ready");
+});
+
+// --- onBeforeSync / onAfterSync tests ---
+
+Deno.test("ECSuite onBeforeSync fires when domain starts syncing", async () => {
+	const syncs: { domain: string; previousState: string }[] = [];
+
+	const cartAdapter = createMockCartAdapter({ delay: 10 });
+	const suite = createECSuite({
+		autoInitialize: false,
+		adapters: { cart: cartAdapter },
+		storage: {
+			type: "memory",
+			cartKey: `test-cart-${Date.now()}`,
+			wishlistKey: `test-wishlist-${Date.now()}`,
+		},
+	});
+
+	suite.onBeforeSync((info) => syncs.push(info));
+
+	await suite.initialize();
+	await suite.cart.addItem({ product_id: "p1", quantity: 1 });
+
+	// Should have captured syncing events
+	const cartSyncs = syncs.filter((s) => s.domain === "cart");
+	assertEquals(cartSyncs.length >= 1, true);
+});
+
+Deno.test("ECSuite onAfterSync fires on success", async () => {
+	const results: { domain: string; success: boolean }[] = [];
+
+	const cartAdapter = createMockCartAdapter({ delay: 10 });
+	const suite = createECSuite({
+		autoInitialize: false,
+		adapters: { cart: cartAdapter },
+		storage: {
+			type: "memory",
+			cartKey: `test-cart-${Date.now()}`,
+			wishlistKey: `test-wishlist-${Date.now()}`,
+		},
+	});
+
+	suite.onAfterSync((info) => results.push(info));
+
+	await suite.initialize();
+	await suite.cart.addItem({ product_id: "p1", quantity: 1 });
+
+	const successes = results.filter((r) => r.success);
+	assertEquals(successes.length >= 1, true);
+});
+
+Deno.test("ECSuite onAfterSync fires on error with error info", async () => {
+	const results: { domain: string; success: boolean; error?: unknown }[] = [];
+
+	const cartAdapter = createMockCartAdapter({
+		delay: 10,
+		forceError: { operation: "addItem", message: "Server error" },
+	});
+
+	const suite = createECSuite({
+		autoInitialize: false,
+		adapters: { cart: cartAdapter },
+		storage: {
+			type: "memory",
+			cartKey: `test-cart-${Date.now()}`,
+			wishlistKey: `test-wishlist-${Date.now()}`,
+		},
+	});
+
+	suite.onAfterSync((info) => results.push(info));
+
+	await suite.initialize();
+	await suite.cart.addItem({ product_id: "p1", quantity: 1 });
+
+	const failures = results.filter((r) => !r.success);
+	assertEquals(failures.length, 1);
+	assertExists(failures[0].error);
+});
+
+Deno.test("ECSuite onBeforeSync/onAfterSync unsubscribe works", async () => {
+	let beforeCount = 0;
+	let afterCount = 0;
+
+	const cartAdapter = createMockCartAdapter({ delay: 10 });
+	const suite = createECSuite({
+		autoInitialize: false,
+		adapters: { cart: cartAdapter },
+		storage: {
+			type: "memory",
+			cartKey: `test-cart-${Date.now()}`,
+			wishlistKey: `test-wishlist-${Date.now()}`,
+		},
+	});
+
+	const unsubBefore = suite.onBeforeSync(() => beforeCount++);
+	const unsubAfter = suite.onAfterSync(() => afterCount++);
+
+	await suite.initialize();
+	await suite.cart.addItem({ product_id: "p1", quantity: 1 });
+
+	const prevBefore = beforeCount;
+	const prevAfter = afterCount;
+
+	// Unsubscribe
+	unsubBefore();
+	unsubAfter();
+
+	await suite.cart.addItem({ product_id: "p2", quantity: 1 });
+
+	// Counts should not have changed
+	assertEquals(beforeCount, prevBefore);
+	assertEquals(afterCount, prevAfter);
 });

@@ -24,7 +24,7 @@
  */
 
 // Main exports
-export { ECSuite, createECSuite, type ECSuiteConfig } from "./suite.ts";
+export { createECSuite, ECSuite, type ECSuiteConfig } from "./suite.ts";
 
 // Types
 export * from "./types/mod.ts";

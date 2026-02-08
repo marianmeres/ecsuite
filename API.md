@@ -28,37 +28,37 @@ Main orchestrator class that coordinates all domain managers.
 Factory function to create an ECSuite instance.
 
 ```typescript
-function createECSuite(config?: ECSuiteConfig): ECSuite
+function createECSuite(config?: ECSuiteConfig): ECSuite;
 ```
 
 ### ECSuiteConfig
 
 ```typescript
 interface ECSuiteConfig {
-  /** Initial context (customerId, sessionId) */
-  context?: DomainContext;
-  /** Adapters for server communication */
-  adapters?: {
-    cart?: CartAdapter;
-    wishlist?: WishlistAdapter;
-    order?: OrderAdapter;
-    customer?: CustomerAdapter;
-    payment?: PaymentAdapter;
-    product?: ProductAdapter;
-  };
-  /** Storage configuration */
-  storage?: {
-    /** Cart storage key (default: "ecsuite:cart") */
-    cartKey?: string;
-    /** Wishlist storage key (default: "ecsuite:wishlist") */
-    wishlistKey?: string;
-    /** Storage type for persisted domains (default: "local") */
-    type?: StorageType;
-  };
-  /** Product cache TTL in milliseconds (default: 5 minutes) */
-  productCacheTtl?: number;
-  /** Auto-initialize on creation (default: true) */
-  autoInitialize?: boolean;
+	/** Initial context (customerId, sessionId) */
+	context?: DomainContext;
+	/** Adapters for server communication */
+	adapters?: {
+		cart?: CartAdapter;
+		wishlist?: WishlistAdapter;
+		order?: OrderAdapter;
+		customer?: CustomerAdapter;
+		payment?: PaymentAdapter;
+		product?: ProductAdapter;
+	};
+	/** Storage configuration */
+	storage?: {
+		/** Cart storage key (default: "ecsuite:cart") */
+		cartKey?: string;
+		/** Wishlist storage key (default: "ecsuite:wishlist") */
+		wishlistKey?: string;
+		/** Storage type for persisted domains (default: "local") */
+		type?: StorageType;
+	};
+	/** Product cache TTL in milliseconds (default: 5 minutes) */
+	productCacheTtl?: number;
+	/** Auto-initialize on creation (default: true) */
+	autoInitialize?: boolean;
 }
 ```
 
@@ -66,14 +66,14 @@ interface ECSuiteConfig {
 
 #### Properties
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `cart` | `CartManager` | Cart domain manager |
+| Property   | Type              | Description             |
+| ---------- | ----------------- | ----------------------- |
+| `cart`     | `CartManager`     | Cart domain manager     |
 | `wishlist` | `WishlistManager` | Wishlist domain manager |
-| `order` | `OrderManager` | Order domain manager |
+| `order`    | `OrderManager`    | Order domain manager    |
 | `customer` | `CustomerManager` | Customer domain manager |
-| `payment` | `PaymentManager` | Payment domain manager |
-| `product` | `ProductManager` | Product domain manager |
+| `payment`  | `PaymentManager`  | Payment domain manager  |
+| `product`  | `ProductManager`  | Product domain manager  |
 
 #### Methods
 
@@ -154,10 +154,10 @@ All domains wrap their data in `DomainStateWrapper<T>`:
 
 ```typescript
 interface DomainStateWrapper<T> {
-  state: DomainState;        // "initializing" | "ready" | "syncing" | "error"
-  data: T | null;            // Domain data
-  error: DomainError | null; // Error info when state is "error"
-  lastSyncedAt: number | null; // Timestamp of last sync
+	state: DomainState; // "initializing" | "ready" | "syncing" | "error"
+	data: T | null; // Domain data
+	error: DomainError | null; // Error info when state is "error"
+	lastSyncedAt: number | null; // Timestamp of last sync
 }
 ```
 
@@ -171,11 +171,11 @@ Manages shopping cart with localStorage persistence and optimistic updates.
 
 ```typescript
 interface CartManagerOptions {
-  adapter?: CartAdapter;
-  storageKey?: string;      // default: "ecsuite:cart"
-  storageType?: StorageType; // default: "local"
-  context?: DomainContext;
-  pubsub?: PubSub;
+	adapter?: CartAdapter;
+	storageKey?: string; // default: "ecsuite:cart"
+	storageType?: StorageType; // default: "local"
+	context?: DomainContext;
+	pubsub?: PubSub;
 }
 ```
 
@@ -263,11 +263,11 @@ Manages wishlist with localStorage persistence and optimistic updates.
 
 ```typescript
 interface WishlistManagerOptions {
-  adapter?: WishlistAdapter;
-  storageKey?: string;      // default: "ecsuite:wishlist"
-  storageType?: StorageType; // default: "local"
-  context?: DomainContext;
-  pubsub?: PubSub;
+	adapter?: WishlistAdapter;
+	storageKey?: string; // default: "ecsuite:wishlist"
+	storageType?: StorageType; // default: "local"
+	context?: DomainContext;
+	pubsub?: PubSub;
 }
 ```
 
@@ -361,9 +361,9 @@ Manages orders with server-side data source (no local persistence).
 
 ```typescript
 interface OrderManagerOptions {
-  adapter?: OrderAdapter;
-  context?: DomainContext;
-  pubsub?: PubSub;
+	adapter?: OrderAdapter;
+	context?: DomainContext;
+	pubsub?: PubSub;
 }
 ```
 
@@ -431,9 +431,9 @@ Manages customer profile with server-side data source.
 
 ```typescript
 interface CustomerManagerOptions {
-  adapter?: CustomerAdapter;
-  context?: DomainContext;
-  pubsub?: PubSub;
+	adapter?: CustomerAdapter;
+	context?: DomainContext;
+	pubsub?: PubSub;
 }
 ```
 
@@ -501,9 +501,9 @@ Manages payment data with server-side source (read-only).
 
 ```typescript
 interface PaymentManagerOptions {
-  adapter?: PaymentAdapter;
-  context?: DomainContext;
-  pubsub?: PubSub;
+	adapter?: PaymentAdapter;
+	context?: DomainContext;
+	pubsub?: PubSub;
 }
 ```
 
@@ -569,10 +569,10 @@ Manages product data with in-memory caching. Unlike other managers, uses a simpl
 
 ```typescript
 interface ProductManagerOptions {
-  adapter?: ProductAdapter;
-  context?: DomainContext;
-  pubsub?: PubSub;
-  cacheTtl?: number; // default: 5 minutes
+	adapter?: ProductAdapter;
+	context?: DomainContext;
+	pubsub?: PubSub;
+	cacheTtl?: number; // default: 5 minutes
 }
 ```
 
@@ -640,12 +640,12 @@ Adapters return data directly on success and throw `HTTP_ERROR` from `@marianmer
 
 ```typescript
 interface CartAdapter {
-  fetch(ctx: DomainContext): Promise<CartData>;
-  addItem(item: CartItem, ctx: DomainContext): Promise<CartData>;
-  updateItem(productId: UUID, quantity: number, ctx: DomainContext): Promise<CartData>;
-  removeItem(productId: UUID, ctx: DomainContext): Promise<CartData>;
-  clear(ctx: DomainContext): Promise<CartData>;
-  sync(cart: CartData, ctx: DomainContext): Promise<CartData>;
+	fetch(ctx: DomainContext): Promise<CartData>;
+	addItem(item: CartItem, ctx: DomainContext): Promise<CartData>;
+	updateItem(productId: UUID, quantity: number, ctx: DomainContext): Promise<CartData>;
+	removeItem(productId: UUID, ctx: DomainContext): Promise<CartData>;
+	clear(ctx: DomainContext): Promise<CartData>;
+	sync(cart: CartData, ctx: DomainContext): Promise<CartData>;
 }
 ```
 
@@ -653,11 +653,11 @@ interface CartAdapter {
 
 ```typescript
 interface WishlistAdapter {
-  fetch(ctx: DomainContext): Promise<WishlistData>;
-  addItem(productId: UUID, ctx: DomainContext): Promise<WishlistData>;
-  removeItem(productId: UUID, ctx: DomainContext): Promise<WishlistData>;
-  clear(ctx: DomainContext): Promise<WishlistData>;
-  sync(wishlist: WishlistData, ctx: DomainContext): Promise<WishlistData>;
+	fetch(ctx: DomainContext): Promise<WishlistData>;
+	addItem(productId: UUID, ctx: DomainContext): Promise<WishlistData>;
+	removeItem(productId: UUID, ctx: DomainContext): Promise<WishlistData>;
+	clear(ctx: DomainContext): Promise<WishlistData>;
+	sync(wishlist: WishlistData, ctx: DomainContext): Promise<WishlistData>;
 }
 ```
 
@@ -665,9 +665,9 @@ interface WishlistAdapter {
 
 ```typescript
 interface OrderAdapter {
-  fetchAll(ctx: DomainContext): Promise<OrderData[]>;
-  fetchOne(orderId: UUID, ctx: DomainContext): Promise<OrderData>;
-  create(order: OrderCreatePayload, ctx: DomainContext): Promise<OrderData>;
+	fetchAll(ctx: DomainContext): Promise<OrderData[]>;
+	fetchOne(orderId: UUID, ctx: DomainContext): Promise<OrderData>;
+	create(order: OrderCreatePayload, ctx: DomainContext): Promise<OrderData>;
 }
 ```
 
@@ -675,8 +675,8 @@ interface OrderAdapter {
 
 ```typescript
 interface CustomerAdapter {
-  fetch(ctx: DomainContext): Promise<CustomerData>;
-  update(data: Partial<CustomerData>, ctx: DomainContext): Promise<CustomerData>;
+	fetch(ctx: DomainContext): Promise<CustomerData>;
+	update(data: Partial<CustomerData>, ctx: DomainContext): Promise<CustomerData>;
 }
 ```
 
@@ -684,8 +684,8 @@ interface CustomerAdapter {
 
 ```typescript
 interface PaymentAdapter {
-  fetchForOrder(orderId: UUID, ctx: DomainContext): Promise<PaymentData[]>;
-  fetchOne(paymentId: UUID, ctx: DomainContext): Promise<PaymentData>;
+	fetchForOrder(orderId: UUID, ctx: DomainContext): Promise<PaymentData[]>;
+	fetchOne(paymentId: UUID, ctx: DomainContext): Promise<PaymentData>;
 }
 ```
 
@@ -693,8 +693,8 @@ interface PaymentAdapter {
 
 ```typescript
 interface ProductAdapter {
-  fetchOne(productId: UUID, ctx: DomainContext): Promise<ProductData>;
-  fetchMany(productIds: UUID[], ctx: DomainContext): Promise<ProductData[]>;
+	fetchOne(productId: UUID, ctx: DomainContext): Promise<ProductData>;
+	fetchMany(productIds: UUID[], ctx: DomainContext): Promise<ProductData[]>;
 }
 ```
 
@@ -707,9 +707,9 @@ import { HTTP_ERROR } from "@marianmeres/http-utils";
 
 // In adapter implementation
 if (!res.ok) {
-  if (res.status === 404) throw new HTTP_ERROR.NotFound("Resource not found");
-  if (res.status === 401) throw new HTTP_ERROR.Unauthorized("Not authenticated");
-  throw new HTTP_ERROR.BadRequest("Request failed");
+	if (res.status === 404) throw new HTTP_ERROR.NotFound("Resource not found");
+	if (res.status === 401) throw new HTTP_ERROR.Unauthorized("Not authenticated");
+	throw new HTTP_ERROR.BadRequest("Request failed");
 }
 ```
 
@@ -727,8 +727,8 @@ type DomainState = "initializing" | "ready" | "syncing" | "error";
 
 ```typescript
 interface DomainContext {
-  customerId?: UUID;
-  sessionId?: UUID;
+	customerId?: UUID;
+	sessionId?: UUID;
 }
 ```
 
@@ -736,10 +736,10 @@ interface DomainContext {
 
 ```typescript
 interface DomainError {
-  code: string;
-  message: string;
-  operation: string;
-  originalError?: unknown;
+	code: string;
+	message: string;
+	operation: string;
+	originalError?: unknown;
 }
 ```
 
@@ -753,8 +753,8 @@ type StorageType = "local" | "session" | "memory" | null;
 
 ```typescript
 interface WishlistItem {
-  product_id: UUID;
-  added_at?: number;
+	product_id: UUID;
+	added_at?: number;
 }
 ```
 
@@ -762,7 +762,7 @@ interface WishlistItem {
 
 ```typescript
 interface WishlistData {
-  items: WishlistItem[];
+	items: WishlistItem[];
 }
 ```
 
@@ -770,8 +770,8 @@ interface WishlistData {
 
 ```typescript
 interface EnrichedCartItem extends CartItem {
-  product: ProductData | null;
-  lineTotal: number;
+	product: ProductData | null;
+	lineTotal: number;
 }
 ```
 
@@ -779,7 +779,7 @@ interface EnrichedCartItem extends CartItem {
 
 ```typescript
 interface EnrichedWishlistItem extends WishlistItem {
-  product: ProductData | null;
+	product: ProductData | null;
 }
 ```
 
@@ -789,24 +789,24 @@ interface EnrichedWishlistItem extends WishlistItem {
 
 ### Event Types
 
-| Event | Description |
-|-------|-------------|
-| `domain:state:changed` | Domain state transitioned |
-| `domain:error` | Domain operation failed |
-| `domain:synced` | Domain successfully synced |
-| `cart:item:added` | Cart item added |
-| `cart:item:updated` | Cart item quantity updated |
-| `cart:item:removed` | Cart item removed |
-| `cart:cleared` | Cart cleared |
-| `wishlist:item:added` | Wishlist item added |
-| `wishlist:item:removed` | Wishlist item removed |
-| `wishlist:cleared` | Wishlist cleared |
-| `order:created` | Order created |
-| `order:fetched` | Orders fetched |
-| `customer:updated` | Customer updated |
-| `customer:fetched` | Customer fetched |
-| `payment:fetched` | Payments fetched |
-| `product:fetched` | Product fetched |
+| Event                   | Description                |
+| ----------------------- | -------------------------- |
+| `domain:state:changed`  | Domain state transitioned  |
+| `domain:error`          | Domain operation failed    |
+| `domain:synced`         | Domain successfully synced |
+| `cart:item:added`       | Cart item added            |
+| `cart:item:updated`     | Cart item quantity updated |
+| `cart:item:removed`     | Cart item removed          |
+| `cart:cleared`          | Cart cleared               |
+| `wishlist:item:added`   | Wishlist item added        |
+| `wishlist:item:removed` | Wishlist item removed      |
+| `wishlist:cleared`      | Wishlist cleared           |
+| `order:created`         | Order created              |
+| `order:fetched`         | Orders fetched             |
+| `customer:updated`      | Customer updated           |
+| `customer:fetched`      | Customer fetched           |
+| `payment:fetched`       | Payments fetched           |
+| `product:fetched`       | Product fetched            |
 
 ### Event Interfaces
 
@@ -814,8 +814,8 @@ All events extend `ECSuiteEventBase`:
 
 ```typescript
 interface ECSuiteEventBase {
-  timestamp: number;
-  domain: DomainName;
+	timestamp: number;
+	domain: DomainName;
 }
 ```
 
@@ -827,12 +827,12 @@ Mock adapters are provided for testing:
 
 ```typescript
 import {
-  createMockCartAdapter,
-  createMockWishlistAdapter,
-  createMockOrderAdapter,
-  createMockCustomerAdapter,
-  createMockPaymentAdapter,
-  createMockProductAdapter,
+	createMockCartAdapter,
+	createMockCustomerAdapter,
+	createMockOrderAdapter,
+	createMockPaymentAdapter,
+	createMockProductAdapter,
+	createMockWishlistAdapter,
 } from "@marianmeres/ecsuite";
 ```
 
@@ -842,13 +842,13 @@ All mock adapters support:
 
 ```typescript
 interface MockAdapterOptions {
-  initialData?: T;        // Initial data
-  delay?: number;         // Network delay in ms (default: 50)
-  forceError?: {          // Force errors for testing
-    operation?: string;
-    code?: string;
-    message?: string;
-  };
+	initialData?: T; // Initial data
+	delay?: number; // Network delay in ms (default: 50)
+	forceError?: { // Force errors for testing
+		operation?: string;
+		code?: string;
+		message?: string;
+	};
 }
 ```
 
@@ -856,12 +856,12 @@ interface MockAdapterOptions {
 
 ```typescript
 const suite = createECSuite({
-  adapters: {
-    cart: createMockCartAdapter({
-      initialData: { items: [{ product_id: "p1", quantity: 2 }] },
-      delay: 100,
-    }),
-  },
-  storage: { type: "memory" },
+	adapters: {
+		cart: createMockCartAdapter({
+			initialData: { items: [{ product_id: "p1", quantity: 2 }] },
+			delay: 100,
+		}),
+	},
+	storage: { type: "memory" },
 });
 ```

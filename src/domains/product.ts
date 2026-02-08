@@ -173,10 +173,14 @@ export class ProductManager {
 			});
 
 			try {
-				const fetchedData = await this.#adapter.fetchMany(missingIds, this.#context);
+				const fetchedData = await this.#adapter.fetchMany(
+					missingIds,
+					this.#context,
+				);
 				for (const product of fetchedData) {
 					// Products from collection-types have model_id
-					const productId = (product as ProductData & { model_id?: UUID }).model_id;
+					const productId =
+						(product as ProductData & { model_id?: UUID }).model_id;
 					if (productId) {
 						this.#setCache(productId, product);
 						result.set(productId, product);

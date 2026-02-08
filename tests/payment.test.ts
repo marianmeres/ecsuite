@@ -224,3 +224,102 @@ Deno.test("PaymentManager works without adapter", async () => {
 	assertEquals(payments.length, 0);
 	assertEquals(payment.get().state, "ready");
 });
+
+// --- initiate / capture tests ---
+
+Deno.test("PaymentManager initiate creates payment intent", async () => {
+	const adapter = createMockPaymentAdapter({ delay: 10 });
+
+	const payment = new PaymentManager({ adapter });
+	await payment.initialize();
+
+	const intent = await payment.initiate("order-1", {
+		provider: "stripe",
+		amount: 1000,
+		currency: "EUR",
+	});
+
+	assertExists(intent);
+	assertExists(intent.id);
+	assertExists(intent.redirect_url);
+	assertEquals(payment.get().state, "ready");
+});
+
+Deno.test("PaymentManager initiate returns null when adapter lacks method", async () => {
+	// Adapter without initiate method
+	const adapter = createMockPaymentAdapter({ delay: 10 });
+	delete (adapter as unknown as Record<string, unknown>).initiate;
+
+	const payment = new PaymentManager({ adapter });
+	await payment.initialize();
+
+	const intent = await payment.initiate("order-1", {
+		provider: "stripe",
+		amount: 1000,
+		currency: "EUR",
+	});
+
+	assertEquals(intent, null);
+});
+
+Deno.test("PaymentManager initiate handles error", async () => {
+	const adapter = createMockPaymentAdapter({
+		delay: 10,
+		forceError: { operation: "initiate", message: "Payment error" },
+	});
+
+	const payment = new PaymentManager({ adapter });
+	await payment.initialize();
+
+	const intent = await payment.initiate("order-1", {
+		provider: "stripe",
+		amount: 1000,
+		currency: "EUR",
+	});
+
+	assertEquals(intent, null);
+	assertEquals(payment.get().state, "error");
+	assertEquals(payment.get().error?.operation, "initiate");
+});
+
+Deno.test("PaymentManager capture completes payment", async () => {
+	const adapter = createMockPaymentAdapter({ delay: 10 });
+
+	const payment = new PaymentManager({ adapter });
+	await payment.initialize();
+
+	const captured = await payment.capture("pay_123");
+
+	assertExists(captured);
+	assertEquals(captured.status, "completed");
+	assertEquals(captured.provider_reference, "pay_123");
+	assertEquals(payment.getPaymentCount(), 1);
+	assertEquals(payment.get().state, "ready");
+});
+
+Deno.test("PaymentManager capture returns null when adapter lacks method", async () => {
+	const adapter = createMockPaymentAdapter({ delay: 10 });
+	delete (adapter as unknown as Record<string, unknown>).capture;
+
+	const payment = new PaymentManager({ adapter });
+	await payment.initialize();
+
+	const captured = await payment.capture("pay_123");
+	assertEquals(captured, null);
+});
+
+Deno.test("PaymentManager capture handles error", async () => {
+	const adapter = createMockPaymentAdapter({
+		delay: 10,
+		forceError: { operation: "capture", message: "Capture error" },
+	});
+
+	const payment = new PaymentManager({ adapter });
+	await payment.initialize();
+
+	const captured = await payment.capture("pay_123");
+
+	assertEquals(captured, null);
+	assertEquals(payment.get().state, "error");
+	assertEquals(payment.get().error?.operation, "capture");
+});

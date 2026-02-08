@@ -28,7 +28,7 @@ export interface MockProductAdapterOptions {
 
 /** Create a mock product adapter for testing */
 export function createMockProductAdapter(
-	options: MockProductAdapterOptions = {}
+	options: MockProductAdapterOptions = {},
 ): ProductAdapter {
 	const delay = options.delay ?? 50;
 	const products = new Map<UUID, StoredProduct>();
@@ -45,7 +45,7 @@ export function createMockProductAdapter(
 	const maybeThrow = (operation: string): void => {
 		if (options.forceError?.operation === operation) {
 			throw new HTTP_ERROR.BadRequest(
-				options.forceError.message ?? `Mock error for ${operation}`
+				options.forceError.message ?? `Mock error for ${operation}`,
 			);
 		}
 	};

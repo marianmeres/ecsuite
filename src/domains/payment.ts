@@ -1,13 +1,13 @@
 /**
  * @module domains/payment
  *
- * Payment domain manager - read-only, no local persistence.
+ * Payment domain manager - fetch, initiate, and capture payments.
  * Manages payment data fetched from the server on demand.
  */
 
-import type { PaymentData, UUID } from "@marianmeres/collection-types";
+import type { PaymentData, PaymentIntent, UUID } from "@marianmeres/collection-types";
 import { HTTP_ERROR } from "@marianmeres/http-utils";
-import type { PaymentAdapter } from "../types/adapter.ts";
+import type { PaymentAdapter, PaymentInitConfig } from "../types/adapter.ts";
 import { BaseDomainManager, type BaseDomainOptions } from "./base.ts";
 
 /** Payment list data (array of payments) */
@@ -21,12 +21,14 @@ export interface PaymentManagerOptions extends BaseDomainOptions {
 }
 
 /**
- * Payment domain manager - read-only, no local persistence.
+ * Payment domain manager - fetch, initiate, and capture payments.
  *
  * Features:
  * - Server-side data source (no local persistence)
  * - Fetch payments per order
  * - Fetch individual payments
+ * - Initiate payments (optional adapter support)
+ * - Capture/confirm payments (optional adapter support)
  * - Local cache management
  *
  * @example
@@ -35,7 +37,9 @@ export interface PaymentManagerOptions extends BaseDomainOptions {
  * await payments.initialize();
  *
  * const orderPayments = await payments.fetchForOrder("order-123");
- * console.log(payments.getPaymentCount());
+ * const intent = await payments.initiate("order-123", {
+ *   provider: "stripe", amount: 1000, currency: "EUR",
+ * });
  * ```
  */
 export class PaymentManager extends BaseDomainManager<PaymentListData, PaymentAdapter> {
@@ -82,10 +86,10 @@ export class PaymentManager extends BaseDomainManager<PaymentListData, PaymentAd
 			// Merge payments into our list (avoid duplicates by provider_reference)
 			const current = this.store.get().data ?? { payments: [] };
 			const existingRefs = new Set(
-				current.payments.map((p) => p.provider_reference)
+				current.payments.map((p) => p.provider_reference),
 			);
 			const newPayments = data.filter(
-				(p) => !existingRefs.has(p.provider_reference)
+				(p) => !existingRefs.has(p.provider_reference),
 			);
 			this.setData({ payments: [...current.payments, ...newPayments] });
 			this.markSynced();
@@ -125,7 +129,7 @@ export class PaymentManager extends BaseDomainManager<PaymentListData, PaymentAd
 			// Add or update in our local list
 			const current = this.store.get().data ?? { payments: [] };
 			const existingIndex = current.payments.findIndex(
-				(p) => p.provider_reference === data.provider_reference
+				(p) => p.provider_reference === data.provider_reference,
 			);
 
 			let payments: PaymentData[];
@@ -146,6 +150,106 @@ export class PaymentManager extends BaseDomainManager<PaymentListData, PaymentAd
 				message: e instanceof Error ? e.message : "Failed to fetch payment",
 				originalError: e,
 				operation: "fetchOne",
+			});
+		}
+		return null;
+	}
+
+	/**
+	 * Initiate a payment for an order.
+	 * Requires adapter with initiate() support.
+	 *
+	 * @param orderId - The order to pay for
+	 * @param config - Payment configuration
+	 * @returns PaymentIntent with redirect URL, or null
+	 * @emits payment:initiated - On successful initiation
+	 */
+	async initiate(
+		orderId: UUID,
+		config: PaymentInitConfig,
+	): Promise<PaymentIntent | null> {
+		this.clog.debug("initiate", { orderId });
+		if (!this.adapter?.initiate) {
+			return null;
+		}
+
+		this.setState("syncing");
+		try {
+			const intent = await this.adapter.initiate(
+				orderId,
+				config,
+				this.context,
+			);
+			this.markSynced();
+			this.emit({
+				type: "payment:initiated",
+				domain: "payment",
+				timestamp: Date.now(),
+				orderId,
+				paymentIntentId: intent.id,
+				redirectUrl: intent.redirect_url,
+			});
+			return intent;
+		} catch (e) {
+			this.setError({
+				code: "INITIATE_FAILED",
+				message: e instanceof Error ? e.message : "Failed to initiate payment",
+				originalError: e,
+				operation: "initiate",
+			});
+		}
+		return null;
+	}
+
+	/**
+	 * Capture/confirm a payment.
+	 * Requires adapter with capture() support.
+	 *
+	 * @param paymentId - The payment to capture
+	 * @returns Captured payment data, or null
+	 * @emits payment:captured - On successful capture
+	 */
+	async capture(paymentId: UUID): Promise<PaymentData | null> {
+		this.clog.debug("capture", { paymentId });
+		if (!this.adapter?.capture) {
+			return null;
+		}
+
+		this.setState("syncing");
+		try {
+			const data = await this.adapter.capture(
+				paymentId,
+				this.context,
+			);
+			// Add or update in our local list
+			const current = this.store.get().data ?? { payments: [] };
+			const existingIndex = current.payments.findIndex(
+				(p) => p.provider_reference === data.provider_reference,
+			);
+
+			let payments: PaymentData[];
+			if (existingIndex >= 0) {
+				payments = [...current.payments];
+				payments[existingIndex] = data;
+			} else {
+				payments = [...current.payments, data];
+			}
+
+			this.setData({ payments });
+			this.markSynced();
+			this.emit({
+				type: "payment:captured",
+				domain: "payment",
+				timestamp: Date.now(),
+				paymentId,
+			});
+			return data;
+		} catch (e) {
+			this.setError({
+				code: "CAPTURE_FAILED",
+				message: e instanceof Error ? e.message : "Failed to capture payment",
+				originalError: e,
+				operation: "capture",
 			});
 		}
 		return null;
@@ -177,7 +281,7 @@ export class PaymentManager extends BaseDomainManager<PaymentListData, PaymentAd
 	 */
 	getPaymentByRef(providerReference: string): PaymentData | undefined {
 		return this.store.get().data?.payments.find(
-			(p) => p.provider_reference === providerReference
+			(p) => p.provider_reference === providerReference,
 		);
 	}
 

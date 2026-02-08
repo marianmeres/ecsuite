@@ -126,7 +126,7 @@ export class WishlistManager extends BaseDomainManager<WishlistData, WishlistAda
 					timestamp: Date.now(),
 					productId,
 				});
-			}
+			},
 		);
 	}
 
@@ -161,7 +161,7 @@ export class WishlistManager extends BaseDomainManager<WishlistData, WishlistAda
 					timestamp: Date.now(),
 					productId,
 				});
-			}
+			},
 		);
 	}
 
@@ -207,7 +207,7 @@ export class WishlistManager extends BaseDomainManager<WishlistData, WishlistAda
 					domain: "wishlist",
 					timestamp: Date.now(),
 				});
-			}
+			},
 		);
 	}
 
@@ -259,7 +259,9 @@ export class WishlistManager extends BaseDomainManager<WishlistData, WishlistAda
 	 * @param productManager - The ProductManager to fetch product data from
 	 * @returns Array of enriched wishlist items with product data
 	 */
-	async getEnrichedItems(productManager: ProductManager): Promise<EnrichedWishlistItem[]> {
+	async getEnrichedItems(
+		productManager: ProductManager,
+	): Promise<EnrichedWishlistItem[]> {
 		const data = this.store.get().data;
 		if (!data?.items.length) return [];
 

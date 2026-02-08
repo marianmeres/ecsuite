@@ -45,6 +45,53 @@ export class CustomerManager extends BaseDomainManager<CustomerData, CustomerAda
 		}
 	}
 
+	/**
+	 * Fetch customer data from the adapter. When customerId is absent
+	 * and the adapter supports fetchBySession, uses session-based
+	 * resolution as a fallback (guest checkout support).
+	 *
+	 * @returns true if customer data was loaded
+	 */
+	private async _fetchCustomerData(
+		operation: string,
+	): Promise<boolean> {
+		try {
+			let data: CustomerData | null = null;
+			if (this.context.customerId) {
+				data = await this.adapter!.fetch(this.context);
+			} else if (this.adapter!.fetchBySession) {
+				data = await this.adapter!.fetchBySession(this.context);
+			} else {
+				// No customerId and no fetchBySession — call fetch()
+				// for backward compatibility
+				data = await this.adapter!.fetch(this.context);
+			}
+
+			if (data) {
+				this.setData(data);
+				this.markSynced();
+				this.emit({
+					type: "customer:fetched",
+					domain: "customer",
+					timestamp: Date.now(),
+				});
+				return true;
+			}
+
+			// No customer found (e.g. guest with no session match)
+			this.setState("ready");
+			return false;
+		} catch (e) {
+			this.setError({
+				code: "FETCH_FAILED",
+				message: e instanceof Error ? e.message : "Failed to fetch customer",
+				originalError: e,
+				operation,
+			});
+			return false;
+		}
+	}
+
 	/** Initialize by fetching customer data from server */
 	async initialize(): Promise<void> {
 		this.clog.debug("initialize start");
@@ -56,23 +103,7 @@ export class CustomerManager extends BaseDomainManager<CustomerData, CustomerAda
 		}
 
 		this.setState("syncing");
-		try {
-			const data = await this.adapter.fetch(this.context);
-			this.setData(data);
-			this.markSynced();
-			this.emit({
-				type: "customer:fetched",
-				domain: "customer",
-				timestamp: Date.now(),
-			});
-		} catch (e) {
-			this.setError({
-				code: "FETCH_FAILED",
-				message: e instanceof Error ? e.message : "Failed to fetch customer",
-				originalError: e,
-				operation: "initialize",
-			});
-		}
+		await this._fetchCustomerData("initialize");
 		this.clog.debug("initialize complete");
 	}
 
@@ -88,23 +119,7 @@ export class CustomerManager extends BaseDomainManager<CustomerData, CustomerAda
 		}
 
 		this.setState("syncing");
-		try {
-			const data = await this.adapter.fetch(this.context);
-			this.setData(data);
-			this.markSynced();
-			this.emit({
-				type: "customer:fetched",
-				domain: "customer",
-				timestamp: Date.now(),
-			});
-		} catch (e) {
-			this.setError({
-				code: "FETCH_FAILED",
-				message: e instanceof Error ? e.message : "Failed to fetch customer",
-				originalError: e,
-				operation: "refresh",
-			});
-		}
+		await this._fetchCustomerData("refresh");
 	}
 
 	/**
@@ -143,7 +158,7 @@ export class CustomerManager extends BaseDomainManager<CustomerData, CustomerAda
 					domain: "customer",
 					timestamp: Date.now(),
 				});
-			}
+			},
 		);
 	}
 

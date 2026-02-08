@@ -9,8 +9,11 @@ import type {
 	CartData,
 	CartItem,
 	CustomerData,
+	OrderCreateResult,
 	OrderData,
 	PaymentData,
+	PaymentInitConfig,
+	PaymentIntent,
 	ProductData,
 	UUID,
 } from "@marianmeres/collection-types";
@@ -49,30 +52,55 @@ export interface WishlistAdapter {
 /** Order create payload (status is set by server) */
 export type OrderCreatePayload = Omit<OrderData, "status">;
 
-/** Order adapter interface (read + create only) */
+// OrderCreateResult is now provided by @marianmeres/collection-types
+export type { OrderCreateResult } from "@marianmeres/collection-types";
+
+/** Order adapter interface (read + create) */
 export interface OrderAdapter {
 	/** Fetch all orders for customer */
 	fetchAll(ctx: DomainContext): Promise<OrderData[]>;
 	/** Fetch single order by ID */
 	fetchOne(orderId: UUID, ctx: DomainContext): Promise<OrderData>;
-	/** Create new order */
-	create(order: OrderCreatePayload, ctx: DomainContext): Promise<OrderData>;
+	/** Create new order — returns data + model_id */
+	create(
+		order: OrderCreatePayload,
+		ctx: DomainContext,
+	): Promise<OrderCreateResult>;
 }
 
 /** Customer adapter interface (read + limited update) */
 export interface CustomerAdapter {
-	/** Fetch customer data */
+	/** Fetch customer data (requires customerId in context) */
 	fetch(ctx: DomainContext): Promise<CustomerData>;
+	/** Optional: resolve customer by session when customerId is unknown */
+	fetchBySession?(ctx: DomainContext): Promise<CustomerData | null>;
 	/** Update customer data (partial) */
-	update(data: Partial<CustomerData>, ctx: DomainContext): Promise<CustomerData>;
+	update(
+		data: Partial<CustomerData>,
+		ctx: DomainContext,
+	): Promise<CustomerData>;
 }
 
-/** Payment adapter interface (read-only) */
+// PaymentInitConfig is now provided by @marianmeres/collection-types
+export type { PaymentInitConfig } from "@marianmeres/collection-types";
+
+/** Payment adapter interface */
 export interface PaymentAdapter {
 	/** Fetch payments for an order */
 	fetchForOrder(orderId: UUID, ctx: DomainContext): Promise<PaymentData[]>;
 	/** Fetch single payment by ID */
 	fetchOne(paymentId: UUID, ctx: DomainContext): Promise<PaymentData>;
+	/** Optional: initiate a new payment for an order */
+	initiate?(
+		orderId: UUID,
+		config: PaymentInitConfig,
+		ctx: DomainContext,
+	): Promise<PaymentIntent>;
+	/** Optional: capture/confirm a payment */
+	capture?(
+		paymentId: UUID,
+		ctx: DomainContext,
+	): Promise<PaymentData>;
 }
 
 /** Product adapter interface (read-only with batch support) */

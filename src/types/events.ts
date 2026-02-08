@@ -9,7 +9,13 @@ import type { UUID } from "@marianmeres/collection-types";
 import type { DomainError, DomainState } from "./state.ts";
 
 /** Domain identifiers */
-export type DomainName = "cart" | "wishlist" | "order" | "customer" | "payment" | "product";
+export type DomainName =
+	| "cart"
+	| "wishlist"
+	| "order"
+	| "customer"
+	| "payment"
+	| "product";
 
 /** Event types emitted by the suite */
 export type ECSuiteEventType =
@@ -28,6 +34,8 @@ export type ECSuiteEventType =
 	| "customer:updated"
 	| "customer:fetched"
 	| "payment:fetched"
+	| "payment:initiated"
+	| "payment:captured"
 	| "product:fetched";
 
 /** Base event data */
@@ -110,7 +118,7 @@ export interface WishlistClearedEvent extends ECSuiteEventBase {
 export interface OrderCreatedEvent extends ECSuiteEventBase {
 	type: "order:created";
 	domain: "order";
-	orderId?: UUID;
+	orderId: UUID;
 }
 
 /** Order fetched event */
@@ -137,6 +145,22 @@ export interface PaymentFetchedEvent extends ECSuiteEventBase {
 	domain: "payment";
 }
 
+/** Payment initiated event */
+export interface PaymentInitiatedEvent extends ECSuiteEventBase {
+	type: "payment:initiated";
+	domain: "payment";
+	orderId: UUID;
+	paymentIntentId: UUID;
+	redirectUrl: string;
+}
+
+/** Payment captured event */
+export interface PaymentCapturedEvent extends ECSuiteEventBase {
+	type: "payment:captured";
+	domain: "payment";
+	paymentId: UUID;
+}
+
 /** Product fetched event */
 export interface ProductFetchedEvent extends ECSuiteEventBase {
 	type: "product:fetched";
@@ -161,4 +185,6 @@ export type ECSuiteEvent =
 	| CustomerUpdatedEvent
 	| CustomerFetchedEvent
 	| PaymentFetchedEvent
+	| PaymentInitiatedEvent
+	| PaymentCapturedEvent
 	| ProductFetchedEvent;
