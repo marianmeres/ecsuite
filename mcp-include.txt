@@ -1,0 +1,1 @@
+E-commerce frontend UI state management library with optimistic updates, Svelte-compatible reactive stores, and a pluggable adapter pattern for cart, wishlist, order, customer, payment, and product domains.
