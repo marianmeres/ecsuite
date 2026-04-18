@@ -62,9 +62,15 @@ export class CustomerManager extends BaseDomainManager<CustomerData, CustomerAda
 			} else if (this.adapter!.fetchBySession) {
 				data = await this.adapter!.fetchBySession(this.context);
 			} else {
-				// No customerId and no fetchBySession — call fetch()
-				// for backward compatibility
-				data = await this.adapter!.fetch(this.context);
+				// No customerId and no fetchBySession — there is nothing safe
+				// to fetch. Mark ready with no data and warn so config bugs
+				// don't manifest as adapter-rejection noise.
+				this.clog.warn(
+					"customer fetch skipped: no customerId in context and " +
+						"adapter has no fetchBySession()",
+				);
+				this.setState("ready");
+				return false;
 			}
 
 			if (data) {
@@ -132,11 +138,21 @@ export class CustomerManager extends BaseDomainManager<CustomerData, CustomerAda
 	async update(data: Partial<CustomerData>): Promise<void> {
 		this.clog.debug("update");
 		if (!this.adapter) {
-			return;
+			const error = {
+				code: "NOT_IMPLEMENTED",
+				message: "CustomerAdapter is not configured",
+				operation: "update",
+			};
+			this.setError(error);
+			throw new Error(error.message);
 		}
 
 		const current = this.store.get().data;
 		if (!current) {
+			// No data loaded yet — refuse to optimistically merge into nothing.
+			// Treat as a recoverable warning rather than a hard error so the
+			// caller can `await refresh()` first and retry.
+			this.clog.warn("update called before customer data was loaded — no-op");
 			return;
 		}
 

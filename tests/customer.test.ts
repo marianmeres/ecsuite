@@ -41,7 +41,7 @@ Deno.test("CustomerManager initializes with adapter data", async () => {
 		delay: 10,
 	});
 
-	const customer = new CustomerManager({ adapter });
+	const customer = new CustomerManager({ adapter, context: { customerId: "test-cust" } });
 	await customer.initialize();
 
 	const state = customer.get();
@@ -57,7 +57,7 @@ Deno.test("CustomerManager refresh reloads data", async () => {
 		delay: 10,
 	});
 
-	const customer = new CustomerManager({ adapter });
+	const customer = new CustomerManager({ adapter, context: { customerId: "test-cust" } });
 	await customer.initialize();
 	assertEquals(customer.getName(), "Original");
 
@@ -73,7 +73,7 @@ Deno.test("CustomerManager update modifies data", async () => {
 		delay: 10,
 	});
 
-	const customer = new CustomerManager({ adapter });
+	const customer = new CustomerManager({ adapter, context: { customerId: "test-cust" } });
 	await customer.initialize();
 	assertEquals(customer.getName(), "Original");
 
@@ -89,7 +89,7 @@ Deno.test("CustomerManager update performs optimistic update", async () => {
 		delay: 100,
 	});
 
-	const customer = new CustomerManager({ adapter });
+	const customer = new CustomerManager({ adapter, context: { customerId: "test-cust" } });
 	await customer.initialize();
 
 	// Start update (don't await yet)
@@ -112,7 +112,7 @@ Deno.test("CustomerManager update rolls back on error", async () => {
 		forceError: { operation: "update", message: "Update failed" },
 	});
 
-	const customer = new CustomerManager({ adapter });
+	const customer = new CustomerManager({ adapter, context: { customerId: "test-cust" } });
 	await customer.initialize();
 
 	await customer.update({ first_name: "Updated" });
@@ -129,7 +129,7 @@ Deno.test("CustomerManager getEmail returns email", async () => {
 		delay: 10,
 	});
 
-	const customer = new CustomerManager({ adapter });
+	const customer = new CustomerManager({ adapter, context: { customerId: "test-cust" } });
 	await customer.initialize();
 
 	assertEquals(customer.getEmail(), "user@test.com");
@@ -141,7 +141,7 @@ Deno.test("CustomerManager getName returns name", async () => {
 		delay: 10,
 	});
 
-	const customer = new CustomerManager({ adapter });
+	const customer = new CustomerManager({ adapter, context: { customerId: "test-cust" } });
 	await customer.initialize();
 
 	assertEquals(customer.getName(), "Jane Doe");
@@ -153,7 +153,7 @@ Deno.test("CustomerManager isGuest returns guest status", async () => {
 		delay: 10,
 	});
 
-	const guest = new CustomerManager({ adapter: guestAdapter });
+	const guest = new CustomerManager({ adapter: guestAdapter, context: { customerId: "test-guest" } });
 	await guest.initialize();
 	assertEquals(guest.isGuest(), true);
 
@@ -162,7 +162,7 @@ Deno.test("CustomerManager isGuest returns guest status", async () => {
 		delay: 10,
 	});
 
-	const registered = new CustomerManager({ adapter: registeredAdapter });
+	const registered = new CustomerManager({ adapter: registeredAdapter, context: { customerId: "test-reg" } });
 	await registered.initialize();
 	assertEquals(registered.isGuest(), false);
 });
@@ -173,7 +173,7 @@ Deno.test("CustomerManager hasData returns true when data loaded", async () => {
 		delay: 10,
 	});
 
-	const customer = new CustomerManager({ adapter });
+	const customer = new CustomerManager({ adapter, context: { customerId: "test-cust" } });
 	assertEquals(customer.hasData(), false);
 
 	await customer.initialize();

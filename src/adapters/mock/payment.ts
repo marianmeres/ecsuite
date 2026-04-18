@@ -2,7 +2,11 @@
  * Mock payment adapter for testing.
  */
 
-import type { PaymentData, PaymentIntent, UUID } from "@marianmeres/collection-types";
+import type {
+	PaymentData,
+	PaymentIntent,
+	UUID,
+} from "@marianmeres/collection-types";
 import { HTTP_ERROR } from "@marianmeres/http-utils";
 import type { PaymentAdapter, PaymentInitConfig } from "../../types/adapter.ts";
 import type { DomainContext } from "../../types/state.ts";
@@ -15,12 +19,9 @@ export interface MockPaymentAdapterOptions {
 	delay?: number;
 	/** Force errors for testing */
 	forceError?: {
-		operation?:
-			| "fetchForOrder"
-			| "fetchOne"
-			| "initiate"
-			| "capture";
-		code?: string;
+		operation?: "fetchForOrder" | "fetchOne" | "initiate" | "capture";
+		/** HTTP error class name from `HTTP_ERROR` (default: "BadRequest") */
+		code?: keyof typeof HTTP_ERROR;
 		message?: string;
 	};
 }
@@ -38,14 +39,26 @@ export function createMockPaymentAdapter(
 
 	const maybeThrow = (operation: string): void => {
 		if (options.forceError?.operation === operation) {
-			throw new HTTP_ERROR.BadRequest(
-				options.forceError.message ??
-					`Mock error for ${operation}`,
+			const code = options.forceError.code ?? "BadRequest";
+			const Ctor =
+				(HTTP_ERROR as Record<string, typeof HTTP_ERROR.BadRequest>)[
+					code
+				] ?? HTTP_ERROR.BadRequest;
+			throw new Ctor(
+				options.forceError.message ?? `Mock error for ${operation}`,
 			);
 		}
 	};
 
-	const getAllPayments = (): PaymentData[] => Object.values(payments).flat();
+	const findPaymentByRef = (
+		ref: string,
+	): { payment: PaymentData; orderId: UUID } | null => {
+		for (const [orderId, list] of Object.entries(payments)) {
+			const payment = list.find((p) => p.provider_reference === ref);
+			if (payment) return { payment, orderId: orderId as UUID };
+		}
+		return null;
+	};
 
 	return {
 		async fetchForOrder(
@@ -70,18 +83,14 @@ export function createMockPaymentAdapter(
 			await wait();
 			maybeThrow("fetchOne");
 
-			const allPayments = getAllPayments();
-			const payment = allPayments.find(
-				(p) => p.provider_reference === paymentId,
-			);
-
-			if (!payment) {
+			const found = findPaymentByRef(paymentId);
+			if (!found) {
 				throw new HTTP_ERROR.NotFound(
 					`Payment ${paymentId} not found`,
 				);
 			}
 
-			return structuredClone(payment);
+			return structuredClone(found.payment);
 		},
 
 		async initiate(
@@ -93,6 +102,17 @@ export function createMockPaymentAdapter(
 			maybeThrow("initiate");
 
 			const id = `pi_${Math.random().toString(36).slice(2)}` as UUID;
+
+			// Persist the initiated (pending) payment so capture() can find it.
+			if (!payments[orderId]) payments[orderId] = [];
+			payments[orderId].push({
+				provider: config.provider,
+				status: "pending",
+				amount: config.amount,
+				currency: config.currency,
+				provider_reference: id,
+			});
+
 			return {
 				id,
 				redirect_url: `https://mock-payment.test/pay/${id}`,
@@ -110,20 +130,19 @@ export function createMockPaymentAdapter(
 			await wait();
 			maybeThrow("capture");
 
-			const payment: PaymentData = {
-				provider: "mock",
-				status: "completed",
-				amount: 0,
-				currency: "EUR",
-				provider_reference: paymentId,
-			};
+			// Look up the (pending) payment by reference and complete it.
+			// Preserves the original amount/currency/provider that initiate()
+			// recorded — bypassing this would force the test to assert against
+			// hardcoded zeros.
+			const found = findPaymentByRef(paymentId);
+			if (!found) {
+				throw new HTTP_ERROR.NotFound(
+					`Payment ${paymentId} not found`,
+				);
+			}
 
-			// Store captured payment
-			const key = Object.keys(payments)[0] ?? "mock-order";
-			if (!payments[key]) payments[key] = [];
-			payments[key].push(payment);
-
-			return structuredClone(payment);
+			found.payment.status = "completed";
+			return structuredClone(found.payment);
 		},
 	};
 }

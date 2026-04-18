@@ -94,8 +94,7 @@ export class WishlistManager extends BaseDomainManager<WishlistData, WishlistAda
 	async addItem(productId: UUID): Promise<void> {
 		this.clog.debug("addItem", { productId });
 		// Check if already in wishlist
-		const current = this.store.get().data ?? { items: [] };
-		if (current.items.some((i) => i.product_id === productId)) {
+		if (this.hasProduct(productId)) {
 			return; // Already in wishlist, no-op
 		}
 
@@ -107,6 +106,9 @@ export class WishlistManager extends BaseDomainManager<WishlistData, WishlistAda
 		await this.withOptimisticUpdate(
 			"addItem",
 			() => {
+				// Re-read inside callback so we operate on the latest state
+				// even if a prior in-flight mutation has just settled.
+				const current = this.store.get().data ?? { items: [] };
 				const items = [...current.items, newItem];
 				this.setData({ items }, false);
 			},

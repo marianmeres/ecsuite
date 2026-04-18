@@ -15,8 +15,9 @@ export interface MockCartAdapterOptions {
 	delay?: number;
 	/** Force errors for testing */
 	forceError?: {
-		operation?: "fetch" | "addItem" | "updateItem" | "removeItem" | "clear" | "sync";
-		code?: string;
+		operation?: "fetch" | "addItem" | "updateItem" | "removeItem" | "clear";
+		/** HTTP error class name from `HTTP_ERROR` (default: "BadRequest") */
+		code?: keyof typeof HTTP_ERROR;
 		message?: string;
 	};
 }
@@ -32,7 +33,12 @@ export function createMockCartAdapter(options: MockCartAdapterOptions = {}): Car
 
 	const maybeThrow = (operation: string): void => {
 		if (options.forceError?.operation === operation) {
-			throw new HTTP_ERROR.BadRequest(
+			const code = options.forceError.code ?? "BadRequest";
+			const Ctor =
+				(HTTP_ERROR as Record<string, typeof HTTP_ERROR.BadRequest>)[
+					code
+				] ?? HTTP_ERROR.BadRequest;
+			throw new Ctor(
 				options.forceError.message ?? `Mock error for ${operation}`,
 			);
 		}
@@ -94,14 +100,6 @@ export function createMockCartAdapter(options: MockCartAdapterOptions = {}): Car
 			maybeThrow("clear");
 
 			cart = { items: [] };
-			return structuredClone(cart);
-		},
-
-		async sync(newCart: CartData, _ctx: DomainContext): Promise<CartData> {
-			await wait();
-			maybeThrow("sync");
-
-			cart = structuredClone(newCart);
 			return structuredClone(cart);
 		},
 	};

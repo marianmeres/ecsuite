@@ -38,6 +38,15 @@ import { PaymentManager } from "./domains/payment.ts";
 import { ProductManager } from "./domains/product.ts";
 import type { StorageType } from "./domains/base.ts";
 
+/** Combine multiple unsubscribers into one (also `Symbol.dispose`-compatible). */
+function combineUnsubscribers(...unsubs: Unsubscriber[]): Unsubscriber {
+	const fn = () => {
+		for (const u of unsubs) u();
+	};
+	(fn as Unsubscriber)[Symbol.dispose] = fn;
+	return fn as Unsubscriber;
+}
+
 /** Configuration for ECSuite */
 export interface ECSuiteConfig {
 	/** Initial context (customerId, sessionId) */
@@ -66,6 +75,13 @@ export interface ECSuiteConfig {
 	autoInitialize?: boolean;
 	/** Domains to initialize (default: all). Used by both autoInitialize and manual initialize(). */
 	initializeDomains?: InitializableDomainName[];
+	/**
+	 * Reset and re-initialize all domains automatically when `setContext()`
+	 * changes `customerId` (or transitions between guest and authenticated).
+	 * Default: `true`. Set to `false` to manage identity transitions yourself
+	 * via `switchIdentity()` or explicit `reset()` + `initialize()`.
+	 */
+	autoResetOnIdentityChange?: boolean;
 }
 
 /**
@@ -89,6 +105,22 @@ export class ECSuite {
 	readonly #clog = createClog("ecsuite", { color: "auto" });
 	readonly #pubsub: PubSub;
 	#context: DomainContext;
+	#initDomains: InitializableDomainName[] | undefined;
+	#autoResetOnIdentityChange: boolean;
+
+	/**
+	 * Resolves when the most recent `initialize()` (auto or manual, including
+	 * the one triggered by an identity switch) has settled. Always available;
+	 * defaults to `Promise.resolve()` if `autoInitialize: false`.
+	 *
+	 * @example
+	 * ```typescript
+	 * const suite = createECSuite({ adapters: { cart } });
+	 * await suite.ready;            // wait for initial fetches
+	 * await suite.cart.addItem(...);
+	 * ```
+	 */
+	ready: Promise<void> = Promise.resolve();
 
 	/** Cart domain manager */
 	readonly cart: CartManager;
@@ -110,6 +142,8 @@ export class ECSuite {
 		});
 		this.#pubsub = createPubSub();
 		this.#context = config.context ?? {};
+		this.#initDomains = config.initializeDomains;
+		this.#autoResetOnIdentityChange = config.autoResetOnIdentityChange !== false;
 
 		const storageType = config.storage?.type ?? "local";
 
@@ -155,9 +189,10 @@ export class ECSuite {
 			cacheTtl: config.productCacheTtl,
 		});
 
-		// Auto-initialize if configured
+		// Auto-initialize if configured. `ready` exposes the in-flight promise
+		// so callers don't race the constructor.
 		if (config.autoInitialize !== false) {
-			this.initialize(config.initializeDomains);
+			this.ready = this.initialize(this.#initDomains);
 		}
 	}
 
@@ -185,16 +220,29 @@ export class ECSuite {
 			"order",
 			"customer",
 			"payment",
+			"product",
 		];
-		const toInit = domains ?? all;
+		const toInit = domains ?? this.#initDomains ?? all;
+		// Remember the most recently initialized set so identity switches
+		// (and other re-inits) re-fetch the same domains.
+		this.#initDomains = toInit;
 		this.#clog.debug("initializing domains", toInit);
 		await Promise.all(toInit.map((name) => this[name].initialize()));
 		this.#clog.debug("domains initialized", toInit);
 	}
 
-	/** Update context across all domains */
+	/**
+	 * Update context across all domains.
+	 *
+	 * If `customerId` transitions (including to/from undefined) and
+	 * `autoResetOnIdentityChange` is enabled (default), this also resets
+	 * all domains and re-initializes them — assigning the new in-flight
+	 * promise to `ready`. Callers that need to wait for the new identity's
+	 * data should `await suite.ready` afterwards (or use `switchIdentity`).
+	 */
 	setContext(context: DomainContext): void {
 		this.#clog.debug("setContext", context);
+		const prevCustomerId = this.#context.customerId;
 		this.#context = { ...this.#context, ...context };
 		this.cart.setContext(context);
 		this.wishlist.setContext(context);
@@ -202,6 +250,41 @@ export class ECSuite {
 		this.customer.setContext(context);
 		this.payment.setContext(context);
 		this.product.setContext(context);
+
+		const newCustomerId = this.#context.customerId;
+		if (
+			this.#autoResetOnIdentityChange && prevCustomerId !== newCustomerId
+		) {
+			this.#clog.debug("identity changed; resetting domains", {
+				from: prevCustomerId,
+				to: newCustomerId,
+			});
+			this.reset();
+			this.ready = this.initialize(this.#initDomains);
+		}
+	}
+
+	/**
+	 * Atomically switch to a new identity: merge context, reset all domains,
+	 * and re-initialize. Returns a promise that settles when the re-init
+	 * completes. Use this instead of `setContext` when you need to await
+	 * the identity switch (also updates `suite.ready`).
+	 *
+	 * Works even when `autoResetOnIdentityChange: false`.
+	 */
+	async switchIdentity(context: DomainContext): Promise<void> {
+		this.#clog.debug("switchIdentity", context);
+		this.#context = { ...this.#context, ...context };
+		this.cart.setContext(context);
+		this.wishlist.setContext(context);
+		this.order.setContext(context);
+		this.customer.setContext(context);
+		this.payment.setContext(context);
+		this.product.setContext(context);
+
+		this.reset();
+		this.ready = this.initialize(this.#initDomains);
+		await this.ready;
 	}
 
 	/** Get the current context */
@@ -282,10 +365,7 @@ export class ECSuite {
 				});
 			},
 		);
-		return () => {
-			unsub1();
-			unsub2();
-		};
+		return combineUnsubscribers(unsub1, unsub2);
 	}
 
 	/** Reset all domains to initial state */
@@ -297,6 +377,22 @@ export class ECSuite {
 		this.customer.reset();
 		this.payment.reset();
 		this.product.clearCache();
+	}
+
+	/**
+	 * Tear down the suite: unsubscribe all listeners on the internal pubsub
+	 * and clear the product cache. Use when the consumer (e.g., a SPA
+	 * lifecycle hook) is done with the suite — long-lived apps that recreate
+	 * suites otherwise leak subscribers across instances.
+	 *
+	 * Persisted storage is intentionally NOT cleared (cart/wishlist data
+	 * should survive page reloads); call `reset()` first if you also want
+	 * to wipe in-memory state.
+	 */
+	destroy(): void {
+		this.#clog.debug("destroy");
+		this.product.clearCache();
+		this.#pubsub.unsubscribeAll();
 	}
 }
 

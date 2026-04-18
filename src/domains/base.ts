@@ -51,6 +51,13 @@ export abstract class BaseDomainManager<TData, TAdapter> {
 	protected readonly clog: Clog;
 	protected adapter: TAdapter | null = null;
 	protected context: DomainContext = {};
+	/**
+	 * Serializes per-domain mutations so concurrent callers don't race on the
+	 * `previousData` snapshot used for rollback. Each `withOptimisticUpdate`
+	 * waits for the prior one to settle. Reads (`get()`, `subscribe`) are
+	 * never blocked by the queue.
+	 */
+	#mutationQueue: Promise<unknown> = Promise.resolve();
 
 	constructor(domainName: DomainName, options: BaseDomainOptions = {}) {
 		this.domainName = domainName;
@@ -185,21 +192,49 @@ export abstract class BaseDomainManager<TData, TAdapter> {
 	/**
 	 * Execute an async operation with optimistic update pattern.
 	 *
-	 * 1. Captures current state for potential rollback
-	 * 2. Applies optimistic update immediately
-	 * 3. Sets state to "syncing"
-	 * 4. Awaits server sync
-	 * 5. On success: marks synced, calls success callback
-	 * 6. On error: rolls back to previous state, sets error state
+	 * 1. Waits for any prior in-flight mutation on this domain to settle
+	 *    (per-domain serialization — see `#mutationQueue`)
+	 * 2. Captures current state for potential rollback
+	 * 3. Applies optimistic update immediately
+	 * 4. Sets state to "syncing"
+	 * 5. Awaits server sync
+	 * 6. On success: marks synced, calls success callback
+	 * 7. On error: rolls back to previous state, sets error state
+	 *
+	 * Concurrent callers see a deterministic order (FIFO) and a correct
+	 * `previousData` snapshot per operation. Failures do not poison the
+	 * queue — subsequent operations continue.
 	 */
-	protected async withOptimisticUpdate<T>(
+	protected withOptimisticUpdate<T>(
 		operation: string,
 		optimisticUpdate: () => void,
 		serverSync: () => Promise<T>,
 		onSuccess?: (result: T) => void,
 		onError?: (error: DomainError) => void,
 	): Promise<void> {
-		// Capture current state for rollback
+		const next = this.#mutationQueue.then(() =>
+			this.#runOptimistic(
+				operation,
+				optimisticUpdate,
+				serverSync,
+				onSuccess,
+				onError,
+			)
+		);
+		// Swallow rejection on the chain so a failing op doesn't poison
+		// downstream awaiters. The original `next` still rejects to its caller.
+		this.#mutationQueue = next.catch(() => {});
+		return next;
+	}
+
+	async #runOptimistic<T>(
+		operation: string,
+		optimisticUpdate: () => void,
+		serverSync: () => Promise<T>,
+		onSuccess?: (result: T) => void,
+		onError?: (error: DomainError) => void,
+	): Promise<void> {
+		// Capture current state for rollback (after prior queued ops settled)
 		const previousData = this.store.get().data;
 
 		// Apply optimistic update immediately
@@ -211,10 +246,9 @@ export abstract class BaseDomainManager<TData, TAdapter> {
 			this.markSynced();
 			onSuccess?.(result);
 		} catch (e) {
-			// Rollback on error
-			if (previousData !== null) {
-				this.setData(previousData, false);
-			}
+			// Always rollback to previousData (including null) so we never
+			// leave optimistic mutations stranded in an "error" state.
+			this.store.update((s) => ({ ...s, data: previousData }));
 			const error: DomainError = {
 				code: "SYNC_FAILED",
 				message: e instanceof Error ? e.message : "Unknown error",

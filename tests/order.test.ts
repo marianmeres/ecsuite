@@ -58,8 +58,10 @@ Deno.test("OrderManager initializes with adapter data", async () => {
 	const state = orders.get();
 	assertEquals(state.state, "ready");
 	assertEquals(state.data?.orders.length, 2);
-	assertEquals(state.data?.orders[0].status, "pending");
-	assertEquals(state.data?.orders[1].status, "paid");
+	assertEquals(state.data?.orders[0].data.status, "pending");
+	assertEquals(state.data?.orders[1].data.status, "paid");
+	assertEquals(state.data?.orders[0].model_id, "order-1");
+	assertEquals(state.data?.orders[1].model_id, "order-2");
 });
 
 Deno.test("OrderManager fetchAll refreshes orders", async () => {
@@ -88,7 +90,8 @@ Deno.test("OrderManager fetchOne retrieves single order", async () => {
 
 	const order = await orders.fetchOne("order-1");
 	assertExists(order);
-	assertEquals(order.status, "pending");
+	assertEquals(order.model_id, "order-1");
+	assertEquals(order.data.status, "pending");
 });
 
 Deno.test("OrderManager fetchOne returns null for not found", async () => {
@@ -167,8 +170,8 @@ Deno.test("OrderManager getOrders returns all orders", async () => {
 
 	const allOrders = orders.getOrders();
 	assertEquals(allOrders.length, 2);
-	assertEquals(allOrders[0].status, "pending");
-	assertEquals(allOrders[1].status, "paid");
+	assertEquals(allOrders[0].data.status, "pending");
+	assertEquals(allOrders[1].data.status, "paid");
 });
 
 Deno.test("OrderManager getOrderByIndex returns order at index", async () => {
@@ -185,11 +188,11 @@ Deno.test("OrderManager getOrderByIndex returns order at index", async () => {
 
 	const first = orders.getOrderByIndex(0);
 	assertExists(first);
-	assertEquals(first.status, "pending");
+	assertEquals(first.data.status, "pending");
 
 	const second = orders.getOrderByIndex(1);
 	assertExists(second);
-	assertEquals(second.status, "paid");
+	assertEquals(second.data.status, "paid");
 
 	const missing = orders.getOrderByIndex(99);
 	assertEquals(missing, undefined);

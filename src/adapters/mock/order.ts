@@ -20,7 +20,8 @@ export interface MockOrderAdapterOptions {
 	/** Force errors for testing */
 	forceError?: {
 		operation?: "fetchAll" | "fetchOne" | "create";
-		code?: string;
+		/** HTTP error class name from `HTTP_ERROR` (default: "BadRequest") */
+		code?: keyof typeof HTTP_ERROR;
 		message?: string;
 	};
 }
@@ -30,10 +31,10 @@ export function createMockOrderAdapter(
 	options: MockOrderAdapterOptions = {},
 ): OrderAdapter {
 	const delay = options.delay ?? 50;
-	let orders: (OrderData & { model_id: UUID })[] = options.initialData
+	const orders: OrderCreateResult[] = options.initialData
 		? options.initialData.map((o, i) => ({
-			...structuredClone(o),
-			model_id: `order-${i + 1}`,
+			model_id: `order-${i + 1}` as UUID,
+			data: structuredClone(o),
 		}))
 		: [];
 
@@ -43,20 +44,27 @@ export function createMockOrderAdapter(
 
 	const maybeThrow = (operation: string): void => {
 		if (options.forceError?.operation === operation) {
-			throw new HTTP_ERROR.BadRequest(
+			const code = options.forceError.code ?? "BadRequest";
+			const Ctor = (HTTP_ERROR as Record<string, typeof HTTP_ERROR.BadRequest>)[
+				code
+			] ?? HTTP_ERROR.BadRequest;
+			throw new Ctor(
 				options.forceError.message ?? `Mock error for ${operation}`,
 			);
 		}
 	};
 
 	return {
-		async fetchAll(_ctx: DomainContext): Promise<OrderData[]> {
+		async fetchAll(_ctx: DomainContext): Promise<OrderCreateResult[]> {
 			await wait();
 			maybeThrow("fetchAll");
 			return structuredClone(orders);
 		},
 
-		async fetchOne(orderId: UUID, _ctx: DomainContext): Promise<OrderData> {
+		async fetchOne(
+			orderId: UUID,
+			_ctx: DomainContext,
+		): Promise<OrderCreateResult> {
 			await wait();
 			maybeThrow("fetchOne");
 
@@ -81,8 +89,8 @@ export function createMockOrderAdapter(
 				status: "pending" as const,
 			} as OrderData;
 
-			orders.push({ ...data, model_id });
-			return { model_id, data: structuredClone(data) };
+			orders.push({ model_id, data: structuredClone(data) });
+			return { model_id, data };
 		},
 	};
 }

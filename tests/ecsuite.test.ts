@@ -10,6 +10,12 @@ import type { ECSuiteEvent, ErrorEvent } from "../src/types/events.ts";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// Unique storage key generator (Date.now() collides for fast consecutive tests
+// running in the same millisecond).
+let _keyCounter = 0;
+const uniqueKey = (prefix: string) =>
+	`${prefix}-${Date.now()}-${++_keyCounter}`;
+
 Deno.test.beforeEach(() => {
 	createClog.global.debug = false;
 });
@@ -37,8 +43,8 @@ Deno.test("ECSuite initializes all domains", async () => {
 		autoInitialize: false,
 		storage: {
 			type: "memory",
-			cartKey: `test-cart-${Date.now()}`,
-			wishlistKey: `test-wishlist-${Date.now()}`,
+			cartKey: uniqueKey("test-cart"),
+			wishlistKey: uniqueKey("test-wishlist"),
 		},
 	});
 
@@ -69,8 +75,8 @@ Deno.test("ECSuite passes adapters to domains", async () => {
 		},
 		storage: {
 			type: "memory",
-			cartKey: `test-cart-${Date.now()}`,
-			wishlistKey: `test-wishlist-${Date.now()}`,
+			cartKey: uniqueKey("test-cart"),
+			wishlistKey: uniqueKey("test-wishlist"),
 		},
 	});
 
@@ -86,8 +92,8 @@ Deno.test("ECSuite setContext updates all domains", async () => {
 		context: { customerId: "initial" },
 		storage: {
 			type: "memory",
-			cartKey: `test-cart-${Date.now()}`,
-			wishlistKey: `test-wishlist-${Date.now()}`,
+			cartKey: uniqueKey("test-cart"),
+			wishlistKey: uniqueKey("test-wishlist"),
 		},
 	});
 
@@ -134,8 +140,8 @@ Deno.test("ECSuite on subscribes to events", async () => {
 		adapters: { cart: cartAdapter },
 		storage: {
 			type: "memory",
-			cartKey: `test-cart-${Date.now()}`,
-			wishlistKey: `test-wishlist-${Date.now()}`,
+			cartKey: uniqueKey("test-cart"),
+			wishlistKey: uniqueKey("test-wishlist"),
 		},
 	});
 
@@ -157,8 +163,8 @@ Deno.test("ECSuite onAny receives all events", async () => {
 		adapters: { cart: cartAdapter },
 		storage: {
 			type: "memory",
-			cartKey: `test-cart-${Date.now()}`,
-			wishlistKey: `test-wishlist-${Date.now()}`,
+			cartKey: uniqueKey("test-cart"),
+			wishlistKey: uniqueKey("test-wishlist"),
 		},
 	});
 
@@ -181,8 +187,8 @@ Deno.test("ECSuite once subscribes only once", async () => {
 		adapters: { cart: cartAdapter },
 		storage: {
 			type: "memory",
-			cartKey: `test-cart-${Date.now()}`,
-			wishlistKey: `test-wishlist-${Date.now()}`,
+			cartKey: uniqueKey("test-cart"),
+			wishlistKey: uniqueKey("test-wishlist"),
 		},
 	});
 
@@ -206,8 +212,8 @@ Deno.test("ECSuite reset clears all domains", async () => {
 		adapters: { cart: cartAdapter },
 		storage: {
 			type: "memory",
-			cartKey: `test-cart-${Date.now()}`,
-			wishlistKey: `test-wishlist-${Date.now()}`,
+			cartKey: uniqueKey("test-cart"),
+			wishlistKey: uniqueKey("test-wishlist"),
 		},
 	});
 
@@ -233,8 +239,8 @@ Deno.test("ECSuite handles errors from domains", async () => {
 		adapters: { cart: cartAdapter },
 		storage: {
 			type: "memory",
-			cartKey: `test-cart-${Date.now()}`,
-			wishlistKey: `test-wishlist-${Date.now()}`,
+			cartKey: uniqueKey("test-cart"),
+			wishlistKey: uniqueKey("test-wishlist"),
 		},
 	});
 
@@ -274,8 +280,8 @@ Deno.test("ECSuite full workflow", async () => {
 		},
 		storage: {
 			type: "memory",
-			cartKey: `test-cart-${Date.now()}`,
-			wishlistKey: `test-wishlist-${Date.now()}`,
+			cartKey: uniqueKey("test-cart"),
+			wishlistKey: uniqueKey("test-wishlist"),
 		},
 	});
 
@@ -340,8 +346,8 @@ Deno.test("ECSuite initialize with domain allowlist only initializes specified d
 		autoInitialize: false,
 		storage: {
 			type: "memory",
-			cartKey: `test-cart-${Date.now()}`,
-			wishlistKey: `test-wishlist-${Date.now()}`,
+			cartKey: uniqueKey("test-cart"),
+			wishlistKey: uniqueKey("test-wishlist"),
 		},
 	});
 
@@ -360,8 +366,8 @@ Deno.test("ECSuite initialize without args still initializes all domains", async
 		autoInitialize: false,
 		storage: {
 			type: "memory",
-			cartKey: `test-cart-${Date.now()}`,
-			wishlistKey: `test-wishlist-${Date.now()}`,
+			cartKey: uniqueKey("test-cart"),
+			wishlistKey: uniqueKey("test-wishlist"),
 		},
 	});
 
@@ -380,8 +386,8 @@ Deno.test("ECSuite initializeDomains config works with autoInitialize", async ()
 		initializeDomains: ["cart", "payment"],
 		storage: {
 			type: "memory",
-			cartKey: `test-cart-${Date.now()}`,
-			wishlistKey: `test-wishlist-${Date.now()}`,
+			cartKey: uniqueKey("test-cart"),
+			wishlistKey: uniqueKey("test-wishlist"),
 		},
 	});
 
@@ -402,8 +408,8 @@ Deno.test("ECSuite deferred domain initialization works", async () => {
 		adapters: { order: orderAdapter },
 		storage: {
 			type: "memory",
-			cartKey: `test-cart-${Date.now()}`,
-			wishlistKey: `test-wishlist-${Date.now()}`,
+			cartKey: uniqueKey("test-cart"),
+			wishlistKey: uniqueKey("test-wishlist"),
 		},
 	});
 
@@ -427,8 +433,8 @@ Deno.test("ECSuite onBeforeSync fires when domain starts syncing", async () => {
 		adapters: { cart: cartAdapter },
 		storage: {
 			type: "memory",
-			cartKey: `test-cart-${Date.now()}`,
-			wishlistKey: `test-wishlist-${Date.now()}`,
+			cartKey: uniqueKey("test-cart"),
+			wishlistKey: uniqueKey("test-wishlist"),
 		},
 	});
 
@@ -451,8 +457,8 @@ Deno.test("ECSuite onAfterSync fires on success", async () => {
 		adapters: { cart: cartAdapter },
 		storage: {
 			type: "memory",
-			cartKey: `test-cart-${Date.now()}`,
-			wishlistKey: `test-wishlist-${Date.now()}`,
+			cartKey: uniqueKey("test-cart"),
+			wishlistKey: uniqueKey("test-wishlist"),
 		},
 	});
 
@@ -478,8 +484,8 @@ Deno.test("ECSuite onAfterSync fires on error with error info", async () => {
 		adapters: { cart: cartAdapter },
 		storage: {
 			type: "memory",
-			cartKey: `test-cart-${Date.now()}`,
-			wishlistKey: `test-wishlist-${Date.now()}`,
+			cartKey: uniqueKey("test-cart"),
+			wishlistKey: uniqueKey("test-wishlist"),
 		},
 	});
 
@@ -503,8 +509,8 @@ Deno.test("ECSuite onBeforeSync/onAfterSync unsubscribe works", async () => {
 		adapters: { cart: cartAdapter },
 		storage: {
 			type: "memory",
-			cartKey: `test-cart-${Date.now()}`,
-			wishlistKey: `test-wishlist-${Date.now()}`,
+			cartKey: uniqueKey("test-cart"),
+			wishlistKey: uniqueKey("test-wishlist"),
 		},
 	});
 

@@ -31,8 +31,6 @@ export interface CartAdapter {
 	removeItem(productId: UUID, ctx: DomainContext): Promise<CartData>;
 	/** Clear all items */
 	clear(ctx: DomainContext): Promise<CartData>;
-	/** Sync full cart state (for optimistic update reconciliation) */
-	sync(cart: CartData, ctx: DomainContext): Promise<CartData>;
 }
 
 /** Wishlist adapter interface */
@@ -45,8 +43,6 @@ export interface WishlistAdapter {
 	removeItem(productId: UUID, ctx: DomainContext): Promise<WishlistData>;
 	/** Clear all items */
 	clear(ctx: DomainContext): Promise<WishlistData>;
-	/** Sync full wishlist state */
-	sync(wishlist: WishlistData, ctx: DomainContext): Promise<WishlistData>;
 }
 
 /** Order create payload (status is set by server) */
@@ -55,12 +51,19 @@ export type OrderCreatePayload = Omit<OrderData, "status">;
 // OrderCreateResult is now provided by @marianmeres/collection-types
 export type { OrderCreateResult } from "@marianmeres/collection-types";
 
-/** Order adapter interface (read + create) */
+/**
+ * Order adapter interface (read + create).
+ *
+ * All read/create methods return `OrderCreateResult` (`{ model_id, data }`)
+ * so the manager can identify orders by their server-assigned `model_id`.
+ * Returning bare `OrderData` previously made dedup/update impossible because
+ * `OrderData` has no `model_id` field — only an open index signature.
+ */
 export interface OrderAdapter {
 	/** Fetch all orders for customer */
-	fetchAll(ctx: DomainContext): Promise<OrderData[]>;
+	fetchAll(ctx: DomainContext): Promise<OrderCreateResult[]>;
 	/** Fetch single order by ID */
-	fetchOne(orderId: UUID, ctx: DomainContext): Promise<OrderData>;
+	fetchOne(orderId: UUID, ctx: DomainContext): Promise<OrderCreateResult>;
 	/** Create new order — returns data + model_id */
 	create(
 		order: OrderCreatePayload,

@@ -17,6 +17,34 @@ export interface CartManagerOptions extends BaseDomainOptions {
 }
 
 /**
+ * Reject NaN, Infinity, and non-integer quantities at the entry point so
+ * malformed UI input never reaches the optimistic store or the server.
+ */
+function assertValidQuantity(
+	quantity: number,
+	op: string,
+	{ allowZero = false }: { allowZero?: boolean } = {},
+): void {
+	if (typeof quantity !== "number" || !Number.isFinite(quantity)) {
+		throw new TypeError(
+			`Cart.${op}: quantity must be a finite number, got ${quantity}`,
+		);
+	}
+	if (!Number.isInteger(quantity)) {
+		throw new TypeError(
+			`Cart.${op}: quantity must be an integer, got ${quantity}`,
+		);
+	}
+	if (quantity < 0 || (!allowZero && quantity === 0)) {
+		throw new RangeError(
+			`Cart.${op}: quantity must be ${
+				allowZero ? "non-negative" : "positive"
+			}, got ${quantity}`,
+		);
+	}
+}
+
+/**
  * Cart domain manager with optimistic updates and localStorage persistence.
  *
  * Features:
@@ -95,6 +123,7 @@ export class CartManager extends BaseDomainManager<CartData, CartAdapter> {
 			productId: item.product_id,
 			quantity: item.quantity,
 		});
+		assertValidQuantity(item.quantity, "addItem");
 		await this.withOptimisticUpdate(
 			"addItem",
 			() => {
@@ -152,6 +181,7 @@ export class CartManager extends BaseDomainManager<CartData, CartAdapter> {
 	 */
 	async updateItemQuantity(productId: UUID, quantity: number): Promise<void> {
 		this.clog.debug("updateItemQuantity", { productId, quantity });
+		assertValidQuantity(quantity, "updateItemQuantity", { allowZero: true });
 		if (quantity <= 0) {
 			return this.removeItem(productId);
 		}

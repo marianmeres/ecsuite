@@ -41,6 +41,10 @@ const suite = createECSuite({
 	},
 });
 
+// `autoInitialize` is true by default; await `suite.ready` so consumer
+// mutations don't race the in-flight initial fetches.
+await suite.ready;
+
 // Subscribe to cart state (Svelte-compatible)
 suite.cart.subscribe((state) => {
 	console.log(state.state, state.data);
@@ -55,6 +59,23 @@ suite.on("domain:error", (event) => {
 
 // Add item (optimistic update)
 await suite.cart.addItem({ product_id: "prod-1", quantity: 2 });
+```
+
+### Identity switches (login / logout)
+
+When the user signs in or out, use `switchIdentity()` (or just call
+`setContext()` with a different `customerId` — auto-reset is on by default):
+
+```typescript
+await suite.switchIdentity({ customerId: "another-user" });
+// All domains reset, re-initialized for the new identity, and `suite.ready`
+// resolves once the new fetches settle.
+```
+
+### Teardown
+
+```typescript
+suite.destroy(); // unsubscribes every internal event listener
 ```
 
 ## Domains
@@ -144,6 +165,55 @@ suite.once("order:created", (event) => {
 ## API Reference
 
 For complete API documentation, see [API.md](API.md).
+
+## Migration to next major
+
+This release tightens correctness in several places. Breaking changes:
+
+- **`OrderAdapter` returns `OrderCreateResult`** for both `fetchAll` and
+  `fetchOne` (`{ model_id, data }`) so orders are uniquely identifiable.
+  `OrderListData.orders` is now `OrderCreateResult[]`. Use the new
+  `orders.getOrderById(modelId)` / `getOrderDataById(modelId)` helpers, or
+  read `result.data.<field>` on returned envelopes.
+- **`CartAdapter.sync()` and `WishlistAdapter.sync()` removed** — they were
+  never called by the manager.
+- **`PaymentManager.initiate()` / `capture()` throw `NOT_IMPLEMENTED`** when
+  the adapter doesn't implement the optional method (previously returned
+  `null` silently). `domain:error` is also emitted.
+- **`CustomerManager.update()` throws `NOT_IMPLEMENTED`** when no adapter is
+  configured (previously silent no-op).
+- **`CustomerManager` no longer falls through to `fetch()`** when both
+  `customerId` is missing AND `adapter.fetchBySession` is undefined; it
+  now warns and stays in `ready` with `data: null`. Pass `customerId` in
+  context, or implement `fetchBySession`.
+- **`CartManager.addItem` / `updateItemQuantity`** validate the quantity
+  (must be a finite, non-negative integer); invalid values throw at the
+  call site instead of being persisted optimistically.
+- **`ProductManager` now extends `BaseDomainManager`** — exposes `subscribe`,
+  emits `domain:error`, and gains an `initialize()` no-op. `setAdapter` /
+  `getAdapter` / `setContext` / `getContext` keep the same signatures.
+- **`InitializableDomainName`** now includes `"product"` for parity with
+  the other domains.
+
+New additions:
+
+- `suite.ready: Promise<void>` — resolves when the most recent (auto or
+  manual) `initialize()` settles.
+- `suite.switchIdentity(context)` — atomic identity switch (merge context,
+  reset domains, re-initialize). Returns a promise.
+- `suite.destroy()` — unsubscribes all internal pubsub listeners.
+- `ECSuiteConfig.autoResetOnIdentityChange` (default `true`) — opt out of
+  the auto-reset path on `setContext()` if you manage identity transitions
+  yourself.
+- `OrderManager.getOrderById(modelId)` / `getOrderDataById(modelId)` lookup
+  helpers.
+- Per-domain mutation queue (`withOptimisticUpdate` is serialized per
+  manager) — concurrent `cart.addItem(...)` calls no longer race their
+  rollback snapshots.
+- Cache stampede dedup in `ProductManager.getById` — concurrent callers
+  for the same id share a single in-flight request.
+- Mock adapters now dispatch `forceError.code` (any name from `HTTP_ERROR`)
+  so tests can simulate `NotFound`, `Conflict`, etc., not just `BadRequest`.
 
 ## License
 

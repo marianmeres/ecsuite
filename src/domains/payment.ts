@@ -170,7 +170,15 @@ export class PaymentManager extends BaseDomainManager<PaymentListData, PaymentAd
 	): Promise<PaymentIntent | null> {
 		this.clog.debug("initiate", { orderId });
 		if (!this.adapter?.initiate) {
-			return null;
+			// Optional adapter method missing — surface as a typed error so
+			// callers don't conflate "not configured" with "server rejected".
+			const error = {
+				code: "NOT_IMPLEMENTED",
+				message: "PaymentAdapter.initiate is not implemented",
+				operation: "initiate",
+			};
+			this.setError(error);
+			throw new Error(error.message);
 		}
 
 		this.setState("syncing");
@@ -212,7 +220,13 @@ export class PaymentManager extends BaseDomainManager<PaymentListData, PaymentAd
 	async capture(paymentId: UUID): Promise<PaymentData | null> {
 		this.clog.debug("capture", { paymentId });
 		if (!this.adapter?.capture) {
-			return null;
+			const error = {
+				code: "NOT_IMPLEMENTED",
+				message: "PaymentAdapter.capture is not implemented",
+				operation: "capture",
+			};
+			this.setError(error);
+			throw new Error(error.message);
 		}
 
 		this.setState("syncing");

@@ -6,7 +6,7 @@ Machine-readable documentation for AI coding assistants.
 
 ```yaml
 name: "@marianmeres/ecsuite"
-version: "1.1.4"
+version: "1.3.2"
 type: "library"
 language: "typescript"
 runtime: "deno"
@@ -28,12 +28,13 @@ E-commerce frontend UI state management library providing:
 
 ```
 ECSuite (orchestrator)
-├── CartManager      [localStorage, optimistic updates]
-├── WishlistManager  [localStorage, optimistic updates]
-├── OrderManager     [server-only, read + create (returns model_id)]
+├── CartManager      [localStorage, optimistic updates, per-domain mutation queue]
+├── WishlistManager  [localStorage, optimistic updates, per-domain mutation queue]
+├── OrderManager     [server-only, read + create — list of {model_id, data}]
 ├── CustomerManager  [server-only, read + update + fetchBySession]
-├── PaymentManager   [server-only, read + initiate + capture]
-└── ProductManager   [in-memory cache with TTL]
+├── PaymentManager   [server-only, read + initiate + capture (throw NOT_IMPL)]
+└── ProductManager   [in-memory TTL cache; extends BaseDomainManager;
+                      in-flight dedup; emits domain:error]
 ```
 
 ## Directory Structure
@@ -166,7 +167,29 @@ const suite = createECSuite({
 	storage: { type: "local" },
 	productCacheTtl: 300000,
 	autoInitialize: true,
+	autoResetOnIdentityChange: true, // default: reset on customerId transition
 });
+
+// Avoid the auto-init race: callers should await the suite's readiness
+// before issuing mutations.
+await suite.ready;
+```
+
+### Identity Switch
+
+```typescript
+// Atomic: merge context, reset all domains, re-initialize.
+await suite.switchIdentity({ customerId: "another" });
+
+// Or via setContext when autoResetOnIdentityChange is enabled.
+suite.setContext({ customerId: "another" });
+await suite.ready;
+```
+
+### Teardown
+
+```typescript
+suite.destroy(); // unsubscribes all internal pubsub listeners
 ```
 
 ### Selective Initialization
@@ -280,20 +303,32 @@ deno publish           # Publish to JSR
 
 ## Important Implementation Details
 
-1. **Optimistic Updates**: `_withOptimisticUpdate()` in BaseDomainManager captures previous state before mutation, rolls back on server error.
+1. **Optimistic Updates**: `withOptimisticUpdate()` in BaseDomainManager captures previous state before mutation, rolls back to it (including `null`) on server error. Mutations are **serialized per domain** through an internal mutation queue so concurrent callers can't race their rollback snapshots.
 
-2. **Persistence**: Cart and Wishlist use `@marianmeres/store` with `createStoragePersistor()` for localStorage/sessionStorage.
+2. **Persistence**: Cart and Wishlist use `@marianmeres/store` with `createStoragePersistor()` for localStorage/sessionStorage. (Cross-tab `storage` event sync is NOT yet implemented.)
 
-3. **ProductManager**: Does NOT extend BaseDomainManager. Uses simple Map cache with TTL instead of state machine.
+3. **ProductManager**: Extends BaseDomainManager with `data: null` (cache lives in a private Map). Exposes `subscribe`, emits `domain:error` (without changing state — a single failed product fetch shouldn't blanket the whole domain in error). Uses an in-flight Map to dedup concurrent `getById` callers (prevents stampede on TTL expiry).
 
 4. **Event System**: Shared PubSub instance passed through ECSuite constructor. Events typed with discriminated union.
 
 5. **Context**: DomainContext (customerId, sessionId, + arbitrary properties via index signature) passed to all adapter methods for server-side identification.
 
-6. **OrderCreateResult**: `OrderAdapter.create()` returns `{ model_id, data }` so consumers always get the server-assigned model ID.
+6. **OrderListData**: Stores `OrderCreateResult[]` (`{ model_id, data }`). `fetchAll`/`fetchOne`/`create` all return this envelope so orders are uniquely identifiable. Use `getOrderById(modelId)` / `getOrderDataById(modelId)`.
 
-7. **Payment Write Ops**: `PaymentAdapter.initiate?()` and `capture?()` are optional methods. `PaymentManager` null-checks before calling, returns null when unavailable.
+7. **Payment Write Ops**: `PaymentAdapter.initiate?()` and `capture?()` are optional adapter methods. `PaymentManager` **throws** `NOT_IMPLEMENTED` (and emits `domain:error`) when called without an implementation — callers must catch or feature-detect (`adapter.initiate !== undefined`).
 
-8. **Guest Checkout**: `CustomerAdapter.fetchBySession?()` is optional. `CustomerManager` uses it when `customerId` is absent in context, falls back to `fetch()` when unavailable.
+8. **Guest Checkout**: `CustomerAdapter.fetchBySession?()` is optional. When `customerId` is absent in context AND `fetchBySession` isn't implemented, `CustomerManager` warns and stays in `ready` with `data: null` — it does NOT silently call `fetch()` anymore (real adapters typically need a `customerId`).
 
 9. **Operation Hooks**: `ECSuite.onBeforeSync()` and `onAfterSync()` are convenience wrappers over the existing event system (no changes to BaseDomainManager).
+
+10. **Identity Switches**: `setContext({ customerId })` auto-resets all domains and re-initializes when the id transitions (default; opt out via `autoResetOnIdentityChange: false`). Awaitable via `suite.ready` or use `suite.switchIdentity()` directly.
+
+11. **Auto-init race**: Constructor with `autoInitialize: true` (default) starts initialize() but cannot await it; consumers should `await suite.ready` before issuing mutations.
+
+12. **Cart Quantity Validation**: `addItem` and `updateItemQuantity` throw `TypeError`/`RangeError` for `NaN`, `Infinity`, fractional, or negative values at the call site (never persisted optimistically).
+
+## Known limitations (not yet fixed)
+
+- **Payment grouping by orderId**: `PaymentManager.getPayments()` returns a flat list. There is no `getPaymentsForOrder(orderId)` helper because `PaymentData` does not carry the order id; consumers fetching for multiple orders must keep their own index.
+- **Pagination**: `OrderAdapter.fetchAll` and `PaymentAdapter.fetchForOrder` have no `limit/offset/cursor` params.
+- **Cross-tab sync**: localStorage edits in one tab don't propagate to other tabs' stores.

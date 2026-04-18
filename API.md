@@ -59,6 +59,14 @@ interface ECSuiteConfig {
 	productCacheTtl?: number;
 	/** Auto-initialize on creation (default: true) */
 	autoInitialize?: boolean;
+	/** Domains to initialize (default: all) */
+	initializeDomains?: InitializableDomainName[];
+	/**
+	 * Reset and re-initialize all domains automatically when `setContext()`
+	 * changes `customerId`. Default: true. Set false to manage identity
+	 * transitions yourself via `switchIdentity()`.
+	 */
+	autoResetOnIdentityChange?: boolean;
 }
 ```
 
@@ -66,31 +74,46 @@ interface ECSuiteConfig {
 
 #### Properties
 
-| Property   | Type              | Description             |
-| ---------- | ----------------- | ----------------------- |
-| `cart`     | `CartManager`     | Cart domain manager     |
-| `wishlist` | `WishlistManager` | Wishlist domain manager |
-| `order`    | `OrderManager`    | Order domain manager    |
-| `customer` | `CustomerManager` | Customer domain manager |
-| `payment`  | `PaymentManager`  | Payment domain manager  |
-| `product`  | `ProductManager`  | Product domain manager  |
+| Property   | Type              | Description                                                          |
+| ---------- | ----------------- | -------------------------------------------------------------------- |
+| `cart`     | `CartManager`     | Cart domain manager                                                  |
+| `wishlist` | `WishlistManager` | Wishlist domain manager                                              |
+| `order`    | `OrderManager`    | Order domain manager                                                 |
+| `customer` | `CustomerManager` | Customer domain manager                                              |
+| `payment`  | `PaymentManager`  | Payment domain manager                                               |
+| `product`  | `ProductManager`  | Product domain manager                                               |
+| `ready`    | `Promise<void>`   | Resolves when the most recent (auto or manual) `initialize()` settles |
 
 #### Methods
 
-##### initialize()
+##### initialize(domains?)
 
-Initialize all domains. Called automatically if `autoInitialize` is true.
+Initialize the chosen domains (or all by default). Called automatically if
+`autoInitialize` is true. The most recently initialized set is remembered
+and re-used for identity-switch re-initialization.
 
 ```typescript
-async initialize(): Promise<void>
+async initialize(domains?: InitializableDomainName[]): Promise<void>
 ```
 
 ##### setContext(context)
 
-Update context across all domains.
+Update context across all domains. If `customerId` transitions and
+`autoResetOnIdentityChange` is enabled (default), this also resets all
+domains and re-initializes them — `suite.ready` is updated to the new
+in-flight promise.
 
 ```typescript
 setContext(context: DomainContext): void
+```
+
+##### switchIdentity(context)
+
+Atomic identity switch: merge context, reset all domains, re-initialize.
+Returns a promise that settles when the re-init completes.
+
+```typescript
+async switchIdentity(context: DomainContext): Promise<void>
 ```
 
 ##### getContext()
@@ -131,6 +154,16 @@ Reset all domains to initial state.
 
 ```typescript
 reset(): void
+```
+
+##### destroy()
+
+Tear down the suite: unsubscribe all listeners on the internal pubsub and
+clear the product cache. Persisted storage is intentionally NOT cleared;
+call `reset()` first if you also want to wipe in-memory state.
+
+```typescript
+destroy(): void
 ```
 
 ---
@@ -381,10 +414,11 @@ async fetchAll(): Promise<void>
 
 ##### fetchOne(orderId)
 
-Fetch single order by ID.
+Fetch single order by ID. Updates an existing entry in the local list (matched
+by `model_id`) or appends a new one.
 
 ```typescript
-async fetchOne(orderId: UUID): Promise<OrderData | null>
+async fetchOne(orderId: UUID): Promise<OrderCreateResult | null>
 ```
 
 ##### create(orderData)
@@ -392,7 +426,7 @@ async fetchOne(orderId: UUID): Promise<OrderData | null>
 Create a new order.
 
 ```typescript
-async create(orderData: OrderCreatePayload): Promise<OrderData | null>
+async create(orderData: OrderCreatePayload): Promise<OrderCreateResult | null>
 ```
 
 **Emits:** `order:created`
@@ -407,18 +441,34 @@ getOrderCount(): number
 
 ##### getOrders()
 
-Get all orders.
+Get all order envelopes.
 
 ```typescript
-getOrders(): OrderData[]
+getOrders(): OrderCreateResult[]
+```
+
+##### getOrderById(modelId)
+
+Look up an order envelope by its server-assigned `model_id`.
+
+```typescript
+getOrderById(modelId: UUID): OrderCreateResult | undefined
+```
+
+##### getOrderDataById(modelId)
+
+Same as `getOrderById` but returns the bare `OrderData` payload.
+
+```typescript
+getOrderDataById(modelId: UUID): OrderData | undefined
 ```
 
 ##### getOrderByIndex(index)
 
-Get order by index.
+Get order envelope by index.
 
 ```typescript
-getOrderByIndex(index: number): OrderData | undefined
+getOrderByIndex(index: number): OrderCreateResult | undefined
 ```
 
 ---
@@ -521,11 +571,37 @@ async fetchForOrder(orderId: UUID): Promise<PaymentData[]>
 
 ##### fetchOne(paymentId)
 
-Fetch single payment by ID.
+Fetch single payment by ID. Updates the existing entry (matched by
+`provider_reference`) or appends a new one.
 
 ```typescript
 async fetchOne(paymentId: UUID): Promise<PaymentData | null>
 ```
+
+##### initiate(orderId, config)
+
+Initiate a payment for an order. **Throws** if `adapter.initiate` is not
+implemented (also emits `domain:error` with `code: "NOT_IMPLEMENTED"`).
+
+```typescript
+async initiate(
+	orderId: UUID,
+	config: PaymentInitConfig,
+): Promise<PaymentIntent | null>
+```
+
+**Emits:** `payment:initiated`
+
+##### capture(paymentId)
+
+Capture a previously initiated payment. **Throws** if `adapter.capture` is
+not implemented (also emits `domain:error` with `code: "NOT_IMPLEMENTED"`).
+
+```typescript
+async capture(paymentId: UUID): Promise<PaymentData | null>
+```
+
+**Emits:** `payment:captured`
 
 ##### getPaymentCount()
 
@@ -563,7 +639,12 @@ clearCache(): void
 
 ### ProductManager
 
-Manages product data with in-memory caching. Unlike other managers, uses a simple cache layer instead of state machine.
+Manages product data with in-memory TTL caching. Extends `BaseDomainManager`
+for unified observability (`subscribe`, `domain:error`, `domain:state:changed`)
+but skips per-product state-machine transitions — fetching a single product
+never blankets the whole domain in `"syncing"` or `"error"`. Concurrent
+`getById()` callers for the same id share a single in-flight request
+(stampede dedup).
 
 #### Constructor Options
 
@@ -645,7 +726,6 @@ interface CartAdapter {
 	updateItem(productId: UUID, quantity: number, ctx: DomainContext): Promise<CartData>;
 	removeItem(productId: UUID, ctx: DomainContext): Promise<CartData>;
 	clear(ctx: DomainContext): Promise<CartData>;
-	sync(cart: CartData, ctx: DomainContext): Promise<CartData>;
 }
 ```
 
@@ -657,16 +737,19 @@ interface WishlistAdapter {
 	addItem(productId: UUID, ctx: DomainContext): Promise<WishlistData>;
 	removeItem(productId: UUID, ctx: DomainContext): Promise<WishlistData>;
 	clear(ctx: DomainContext): Promise<WishlistData>;
-	sync(wishlist: WishlistData, ctx: DomainContext): Promise<WishlistData>;
 }
 ```
 
 ### OrderAdapter
 
+> Returns `OrderCreateResult` envelopes (`{ model_id, data }`) so the
+> manager can identify orders by `model_id` (bare `OrderData` has only an
+> open index signature).
+
 ```typescript
 interface OrderAdapter {
-	fetchAll(ctx: DomainContext): Promise<OrderData[]>;
-	fetchOne(orderId: UUID, ctx: DomainContext): Promise<OrderData>;
+	fetchAll(ctx: DomainContext): Promise<OrderCreateResult[]>;
+	fetchOne(orderId: UUID, ctx: DomainContext): Promise<OrderCreateResult>;
 	create(order: OrderCreatePayload, ctx: DomainContext): Promise<OrderData>;
 }
 ```

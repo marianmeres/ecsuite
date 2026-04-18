@@ -14,9 +14,13 @@ import type {
 } from "../types/adapter.ts";
 import { BaseDomainManager, type BaseDomainOptions } from "./base.ts";
 
-/** Order list data (array of orders) */
+/**
+ * Order list data — array of `{ model_id, data }` envelopes so each order is
+ * uniquely identifiable by its server-assigned `model_id`. (Bare `OrderData`
+ * has no id field, only an open index signature.)
+ */
 export interface OrderListData {
-	orders: OrderData[];
+	orders: OrderCreateResult[];
 }
 
 export interface OrderManagerOptions extends BaseDomainOptions {
@@ -31,15 +35,15 @@ export interface OrderManagerOptions extends BaseDomainOptions {
  * - Server-side data source (no local persistence)
  * - Fetch all orders or individual orders
  * - Create new orders
- * - Order list management
+ * - Order list management keyed by `model_id`
  *
  * @example
  * ```typescript
  * const orders = new OrderManager({ adapter: myOrderAdapter });
  * await orders.initialize();
  *
- * const newOrder = await orders.create({ items: [...], total: 100 });
- * console.log(orders.getOrderCount());
+ * const result = await orders.create({ items: [...], total: 100 });
+ * console.log(result.model_id, result.data);
  * ```
  */
 export class OrderManager extends BaseDomainManager<OrderListData, OrderAdapter> {
@@ -116,12 +120,12 @@ export class OrderManager extends BaseDomainManager<OrderListData, OrderAdapter>
 
 	/**
 	 * Fetch a single order by ID from the server.
-	 * Updates or adds the order to the local list.
+	 * Updates or adds the order to the local list, keyed by `model_id`.
 	 *
 	 * @param orderId - The order ID to fetch
-	 * @returns The fetched order or null on error
+	 * @returns The fetched order envelope or null on error
 	 */
-	async fetchOne(orderId: UUID): Promise<OrderData | null> {
+	async fetchOne(orderId: UUID): Promise<OrderCreateResult | null> {
 		this.clog.debug("fetchOne", { orderId });
 		if (!this.adapter) {
 			return null;
@@ -129,26 +133,23 @@ export class OrderManager extends BaseDomainManager<OrderListData, OrderAdapter>
 
 		this.setState("syncing");
 		try {
-			const data = await this.adapter.fetchOne(orderId, this.context);
-			// Update the order in our local list
-			// TODO: fetchAll/fetchOne return OrderData which lacks model_id;
-			// matching by model_id relies on the index signature on OrderData
+			const result = await this.adapter.fetchOne(orderId, this.context);
 			const current = this.store.get().data ?? { orders: [] };
 			const existingIndex = current.orders.findIndex(
-				(o) => o.model_id === orderId,
+				(o) => o.model_id === result.model_id,
 			);
 
-			let orders: OrderData[];
+			let orders: OrderCreateResult[];
 			if (existingIndex >= 0) {
 				orders = [...current.orders];
-				orders[existingIndex] = data;
+				orders[existingIndex] = result;
 			} else {
-				orders = [...current.orders, data];
+				orders = [...current.orders, result];
 			}
 
 			this.setData({ orders });
 			this.markSynced();
-			return data;
+			return result;
 		} catch (e) {
 			const isNotFound = e instanceof HTTP_ERROR.NotFound;
 			this.setError({
@@ -166,7 +167,7 @@ export class OrderManager extends BaseDomainManager<OrderListData, OrderAdapter>
 	 * The order status is assigned by the server.
 	 *
 	 * @param orderData - The order data (without status)
-	 * @returns The created order result (with model_id) or null on error
+	 * @returns The created order envelope (with model_id) or null on error
 	 * @emits order:created - On successful creation
 	 */
 	async create(
@@ -183,10 +184,9 @@ export class OrderManager extends BaseDomainManager<OrderListData, OrderAdapter>
 				orderData,
 				this.context,
 			);
-			// Add the new order to our local list
 			const current = this.store.get().data ?? { orders: [] };
 			this.setData({
-				orders: [...current.orders, result.data],
+				orders: [...current.orders, result],
 			});
 			this.markSynced();
 			this.emit({
@@ -217,21 +217,41 @@ export class OrderManager extends BaseDomainManager<OrderListData, OrderAdapter>
 	}
 
 	/**
-	 * Get all orders.
+	 * Get all order envelopes (`{ model_id, data }`).
 	 *
-	 * @returns Array of orders
+	 * @returns Array of order envelopes
 	 */
-	getOrders(): OrderData[] {
+	getOrders(): OrderCreateResult[] {
 		return this.store.get().data?.orders ?? [];
 	}
 
 	/**
-	 * Get an order by its index in the list.
+	 * Get an order envelope by its `model_id`.
+	 *
+	 * @param modelId - The order's server-assigned model id
+	 * @returns The order envelope or undefined if not found
+	 */
+	getOrderById(modelId: UUID): OrderCreateResult | undefined {
+		return this.store.get().data?.orders.find((o) => o.model_id === modelId);
+	}
+
+	/**
+	 * Get the bare `OrderData` for an order by its `model_id`.
+	 *
+	 * @param modelId - The order's server-assigned model id
+	 * @returns The order data or undefined if not found
+	 */
+	getOrderDataById(modelId: UUID): OrderData | undefined {
+		return this.getOrderById(modelId)?.data;
+	}
+
+	/**
+	 * Get an order envelope by its index in the list.
 	 *
 	 * @param index - The index in the orders array
-	 * @returns The order or undefined if index is out of bounds
+	 * @returns The order envelope or undefined if index is out of bounds
 	 */
-	getOrderByIndex(index: number): OrderData | undefined {
+	getOrderByIndex(index: number): OrderCreateResult | undefined {
 		return this.store.get().data?.orders[index];
 	}
 }

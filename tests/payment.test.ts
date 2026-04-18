@@ -245,21 +245,28 @@ Deno.test("PaymentManager initiate creates payment intent", async () => {
 	assertEquals(payment.get().state, "ready");
 });
 
-Deno.test("PaymentManager initiate returns null when adapter lacks method", async () => {
-	// Adapter without initiate method
+Deno.test("PaymentManager initiate throws NOT_IMPLEMENTED when adapter lacks method", async () => {
+	// Adapter without initiate method — must surface as a typed error
+	// instead of silently returning null (which masked configuration bugs).
 	const adapter = createMockPaymentAdapter({ delay: 10 });
 	delete (adapter as unknown as Record<string, unknown>).initiate;
 
 	const payment = new PaymentManager({ adapter });
 	await payment.initialize();
 
-	const intent = await payment.initiate("order-1", {
-		provider: "stripe",
-		amount: 1000,
-		currency: "EUR",
-	});
-
-	assertEquals(intent, null);
+	let caught: Error | null = null;
+	try {
+		await payment.initiate("order-1", {
+			provider: "stripe",
+			amount: 1000,
+			currency: "EUR",
+		});
+	} catch (e) {
+		caught = e as Error;
+	}
+	assertExists(caught);
+	assertEquals(payment.get().state, "error");
+	assertEquals(payment.get().error?.code, "NOT_IMPLEMENTED");
 });
 
 Deno.test("PaymentManager initiate handles error", async () => {
@@ -283,29 +290,55 @@ Deno.test("PaymentManager initiate handles error", async () => {
 });
 
 Deno.test("PaymentManager capture completes payment", async () => {
-	const adapter = createMockPaymentAdapter({ delay: 10 });
+	// Seed a pending payment that capture() will complete. Mirrors the real
+	// flow where `initiate()` (or a webhook) creates the pending record first.
+	const adapter = createMockPaymentAdapter({
+		delay: 10,
+		initialData: {
+			"order-1": [
+				{
+					provider: "stripe",
+					status: "pending",
+					amount: 5000,
+					currency: "EUR",
+					provider_reference: "pay_123",
+				},
+			],
+		},
+	});
 
 	const payment = new PaymentManager({ adapter });
 	await payment.initialize();
+	// Bring the payment into the manager's local cache so `getPaymentCount()`
+	// reflects it after the capture below.
+	await payment.fetchForOrder("order-1");
 
 	const captured = await payment.capture("pay_123");
 
 	assertExists(captured);
 	assertEquals(captured.status, "completed");
 	assertEquals(captured.provider_reference, "pay_123");
+	assertEquals(captured.amount, 5000);
 	assertEquals(payment.getPaymentCount(), 1);
 	assertEquals(payment.get().state, "ready");
 });
 
-Deno.test("PaymentManager capture returns null when adapter lacks method", async () => {
+Deno.test("PaymentManager capture throws NOT_IMPLEMENTED when adapter lacks method", async () => {
 	const adapter = createMockPaymentAdapter({ delay: 10 });
 	delete (adapter as unknown as Record<string, unknown>).capture;
 
 	const payment = new PaymentManager({ adapter });
 	await payment.initialize();
 
-	const captured = await payment.capture("pay_123");
-	assertEquals(captured, null);
+	let caught: Error | null = null;
+	try {
+		await payment.capture("pay_123");
+	} catch (e) {
+		caught = e as Error;
+	}
+	assertExists(caught);
+	assertEquals(payment.get().state, "error");
+	assertEquals(payment.get().error?.code, "NOT_IMPLEMENTED");
 });
 
 Deno.test("PaymentManager capture handles error", async () => {

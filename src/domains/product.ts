@@ -3,15 +3,17 @@
  *
  * Product domain manager with in-memory caching.
  *
- * Read-only domain for fetching product data with caching support.
- * Does not use state machine - just a simple cache layer.
+ * Read-only domain for fetching product data with TTL caching. Extends
+ * `BaseDomainManager` for unified observability (subscribe, domain:error,
+ * domain:state:changed) but the per-product cache itself is held in a
+ * private Map — the store's `data` is null because there is no single
+ * aggregate state worth subscribing to (use `getCacheSize()` /
+ * `isCached()` for cache introspection).
  */
 
-import { createClog } from "@marianmeres/clog";
-import { createPubSub, type PubSub } from "@marianmeres/pubsub";
 import type { ProductData, UUID } from "@marianmeres/collection-types";
 import type { ProductAdapter } from "../types/adapter.ts";
-import type { DomainContext } from "../types/state.ts";
+import { BaseDomainManager, type BaseDomainOptions } from "./base.ts";
 import type { ProductFetchedEvent } from "../types/events.ts";
 
 /** Cache entry with expiration */
@@ -21,29 +23,27 @@ interface CacheEntry {
 }
 
 /** Options for ProductManager */
-export interface ProductManagerOptions {
+export interface ProductManagerOptions extends BaseDomainOptions {
 	/** Product adapter for server communication */
 	adapter?: ProductAdapter;
-	/** Initial context (customerId, sessionId) */
-	context?: DomainContext;
-	/** Shared pubsub instance for events */
-	pubsub?: PubSub;
 	/** Cache TTL in milliseconds (default: 5 minutes) */
 	cacheTtl?: number;
 }
 
 /**
- * Product manager with in-memory caching.
+ * Product manager with in-memory TTL caching.
  *
- * Unlike other domain managers, ProductManager uses a simple cache layer
- * instead of a full state machine. Products are fetched on-demand and cached
- * with a configurable TTL.
+ * Extends `BaseDomainManager` for unified observability (Svelte-compatible
+ * `subscribe`, `domain:state:changed`, `domain:error` events) but skips the
+ * per-product state machine — fetching a single product never transitions
+ * the whole domain into "syncing" because that would be misleading.
  *
  * Features:
- * - In-memory cache with TTL expiration
+ * - In-memory cache with per-entry TTL expiration
  * - Single and batch product fetching
+ * - In-flight request dedup (cache stampede prevention)
  * - Prefetching support for UI optimization
- * - Event emission on fetch
+ * - `domain:error` event emission on adapter failures
  *
  * @example
  * ```typescript
@@ -51,95 +51,84 @@ export interface ProductManagerOptions {
  *   adapter: myProductAdapter,
  *   cacheTtl: 10 * 60 * 1000, // 10 minutes
  * });
+ * await products.initialize();
  *
  * const product = await products.getById("prod-123");
  * const many = await products.getByIds(["prod-1", "prod-2"]);
  * ```
  */
-export class ProductManager {
-	readonly #clog = createClog("ecsuite:product", { color: "auto" });
-	readonly #pubsub: PubSub;
-	#adapter: ProductAdapter | null = null;
-	#context: DomainContext = {};
+export class ProductManager extends BaseDomainManager<null, ProductAdapter> {
 	#cache = new Map<UUID, CacheEntry>();
 	#cacheTtl: number;
+	/** Pending fetches by id, used to dedup concurrent callers (D8). */
+	#inflight = new Map<UUID, Promise<ProductData | null>>();
 
 	constructor(options: ProductManagerOptions = {}) {
-		this.#adapter = options.adapter ?? null;
-		this.#context = options.context ?? {};
-		this.#pubsub = options.pubsub ?? createPubSub();
-		this.#cacheTtl = options.cacheTtl ?? 5 * 60 * 1000; // 5 minutes default
-		this.#clog.debug("initialized", { cacheTtl: this.#cacheTtl });
+		super("product", {
+			...options,
+			// Cache lives in a private Map; the store's `data` carries no
+			// aggregate so persistence is meaningless here.
+			storageType: null,
+		});
+
+		if (options.adapter) {
+			this.adapter = options.adapter;
+		}
+
+		this.#cacheTtl = options.cacheTtl ?? 5 * 60 * 1000;
 	}
 
 	/**
-	 * Set the product adapter for server communication.
-	 *
-	 * @param adapter - The ProductAdapter implementation
+	 * Initialize. Lazy domain — there's nothing to fetch eagerly. Just
+	 * transitions to "ready" so consumers can rely on the same readiness
+	 * contract as other domains.
 	 */
-	setAdapter(adapter: ProductAdapter): void {
-		this.#adapter = adapter;
-		this.#clog.debug("adapter set");
-	}
-
-	/**
-	 * Get the current adapter.
-	 *
-	 * @returns The adapter or null if not set
-	 */
-	getAdapter(): ProductAdapter | null {
-		return this.#adapter;
-	}
-
-	/**
-	 * Update context (customerId, sessionId).
-	 *
-	 * @param context - Context to merge with existing context
-	 */
-	setContext(context: DomainContext): void {
-		this.#context = { ...this.#context, ...context };
-	}
-
-	/**
-	 * Get the current context.
-	 *
-	 * @returns Copy of the current context
-	 */
-	getContext(): DomainContext {
-		return { ...this.#context };
+	initialize(): Promise<void> {
+		this.clog.debug("initialize");
+		this.setState("ready");
+		return Promise.resolve();
 	}
 
 	/**
 	 * Get a single product by ID.
-	 * Returns from cache if valid, otherwise fetches from server.
+	 * Returns from cache if valid, otherwise fetches from server. Concurrent
+	 * callers for the same id share a single in-flight request.
 	 *
 	 * @param productId - The product ID to fetch
-	 * @returns The product data or null if not found/error
+	 * @returns The product data or null if not found / no adapter
 	 * @emits product:fetched - On successful server fetch
+	 * @emits domain:error - On adapter failure
 	 */
 	async getById(productId: UUID): Promise<ProductData | null> {
-		// Check cache first
 		const cached = this.#getFromCache(productId);
-		if (cached) {
-			return cached;
-		}
+		if (cached) return cached;
 
-		// Fetch from server
-		if (!this.#adapter) {
-			this.#clog.debug("getById: no adapter", { productId });
+		if (!this.adapter) {
+			this.clog.debug("getById: no adapter", { productId });
 			return null;
 		}
 
-		this.#clog.debug("getById: fetching", { productId });
-		try {
-			const data = await this.#adapter.fetchOne(productId, this.#context);
-			this.#setCache(productId, data);
-			this.#emitFetched(productId);
-			return data;
-		} catch (e) {
-			this.#clog.error("getById failed", { productId, error: e });
-			return null;
-		}
+		// Dedup concurrent callers (cache stampede prevention)
+		const pending = this.#inflight.get(productId);
+		if (pending) return pending;
+
+		const promise = (async () => {
+			this.clog.debug("getById: fetching", { productId });
+			try {
+				const data = await this.adapter!.fetchOne(productId, this.context);
+				this.#setCache(productId, data);
+				this.#emitFetched(productId);
+				return data;
+			} catch (e) {
+				this.#emitError("getById", e, { productId });
+				return null;
+			} finally {
+				this.#inflight.delete(productId);
+			}
+		})();
+
+		this.#inflight.set(productId, promise);
+		return promise;
 	}
 
 	/**
@@ -149,12 +138,12 @@ export class ProductManager {
 	 * @param productIds - Array of product IDs to fetch
 	 * @returns Map of productId to ProductData
 	 * @emits product:fetched - For each product fetched from server
+	 * @emits domain:error - On adapter failure
 	 */
 	async getByIds(productIds: UUID[]): Promise<Map<UUID, ProductData>> {
 		const result = new Map<UUID, ProductData>();
 		const missingIds: UUID[] = [];
 
-		// Check cache for each product
 		for (const id of productIds) {
 			const cached = this.#getFromCache(id);
 			if (cached) {
@@ -164,21 +153,19 @@ export class ProductManager {
 			}
 		}
 
-		// Fetch missing from server
-		if (missingIds.length > 0 && this.#adapter) {
-			this.#clog.debug("getByIds: fetching missing", {
+		if (missingIds.length > 0 && this.adapter) {
+			this.clog.debug("getByIds: fetching missing", {
 				total: productIds.length,
 				cached: result.size,
 				missing: missingIds.length,
 			});
 
 			try {
-				const fetchedData = await this.#adapter.fetchMany(
+				const fetchedData = await this.adapter.fetchMany(
 					missingIds,
-					this.#context,
+					this.context,
 				);
 				for (const product of fetchedData) {
-					// Products from collection-types have model_id
 					const productId =
 						(product as ProductData & { model_id?: UUID }).model_id;
 					if (productId) {
@@ -188,7 +175,7 @@ export class ProductManager {
 					}
 				}
 			} catch (e) {
-				this.#clog.error("getByIds failed", { missingIds, error: e });
+				this.#emitError("getByIds", e, { missingIds });
 			}
 		}
 
@@ -205,7 +192,7 @@ export class ProductManager {
 		const missingIds = productIds.filter((id) => !this.isCached(id));
 		if (missingIds.length === 0) return;
 
-		this.#clog.debug("prefetch", { count: missingIds.length });
+		this.clog.debug("prefetch", { count: missingIds.length });
 		await this.getByIds(missingIds);
 	}
 
@@ -217,10 +204,10 @@ export class ProductManager {
 	clearCache(productId?: UUID): void {
 		if (productId) {
 			this.#cache.delete(productId);
-			this.#clog.debug("cache cleared for product", { productId });
+			this.clog.debug("cache cleared for product", { productId });
 		} else {
 			this.#cache.clear();
-			this.#clog.debug("cache cleared entirely");
+			this.clog.debug("cache cleared entirely");
 		}
 	}
 
@@ -245,13 +232,19 @@ export class ProductManager {
 		return this.#cache.size;
 	}
 
+	/** Reset clears the cache too (overrides base reset). */
+	override reset(): void {
+		this.#cache.clear();
+		this.#inflight.clear();
+		super.reset();
+	}
+
 	/** Get product from cache if valid */
 	#getFromCache(productId: UUID): ProductData | null {
 		const entry = this.#cache.get(productId);
 		if (!entry) return null;
 
 		if (Date.now() >= entry.expiresAt) {
-			// Expired, remove from cache
 			this.#cache.delete(productId);
 			return null;
 		}
@@ -275,6 +268,26 @@ export class ProductManager {
 			timestamp: Date.now(),
 			productId,
 		};
-		this.#pubsub.publish(event.type, event);
+		this.pubsub.publish(event.type, event);
+	}
+
+	/**
+	 * Emit `domain:error` without changing state. A single failed product
+	 * fetch should not blanket the whole domain in "error" — other cached
+	 * lookups remain valid.
+	 */
+	#emitError(operation: string, e: unknown, context: Record<string, unknown>): void {
+		this.clog.error(`${operation} failed`, { ...context, error: e });
+		this.emit({
+			type: "domain:error",
+			domain: "product",
+			timestamp: Date.now(),
+			error: {
+				code: "FETCH_FAILED",
+				message: e instanceof Error ? e.message : "Failed to fetch",
+				operation,
+				originalError: e,
+			},
+		});
 	}
 }

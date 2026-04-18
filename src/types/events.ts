@@ -17,8 +17,12 @@ export type DomainName =
 	| "payment"
 	| "product";
 
-/** Domain names that support initialize() (excludes product which is fully lazy) */
-export type InitializableDomainName = Exclude<DomainName, "product">;
+/**
+ * Domain names that support `initialize()`. As of the unified ProductManager,
+ * every domain implements initialize() — for product it is a no-op that
+ * transitions to "ready" so consumers can rely on the same readiness contract.
+ */
+export type InitializableDomainName = DomainName;
 
 /** Event types emitted by the suite */
 export type ECSuiteEventType =
