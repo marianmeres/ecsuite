@@ -512,7 +512,7 @@ function wireDomainButtons(): void {
 					}
 					const baseUrl = baseUrlEl.value.trim().replace(/\/$/, "");
 					return run("product.listServer (direct fetch)", async () => {
-						const res = await fetch(`${baseUrl}/api/product/col/product?limit=5`);
+						const res = await fetch(`${baseUrl}/api/product/col/product/mod?limit=5`);
 						if (!res.ok) {
 							throw Object.assign(new Error(await res.text()), { status: res.status });
 						}

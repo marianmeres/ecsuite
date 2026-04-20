@@ -4,8 +4,8 @@
  * Built-in {@link CustomerAdapter} targeting the owner-scoped customer
  * REST surface:
  *
- *   GET {baseUrl}/me/col/customer/:customerId  → { model_id, data: CustomerData }
- *   PUT {baseUrl}/me/col/customer/:customerId  → { model_id, data: CustomerData }
+ *   GET {baseUrl}/me/col/customer/mod/:customerId  → { model_id, data: CustomerData }
+ *   PUT {baseUrl}/me/col/customer/mod/:customerId  → { model_id, data: CustomerData }
  *
  * Both calls require `Authorization: Bearer <jwt>` + a `customerId` on the
  * context (typically resolved from the login subject claim).
@@ -37,7 +37,7 @@ export function createHttpCustomerAdapter(
 	const doFetch = resolveFetch(opts);
 
 	const url = (customerId: string) =>
-		join(base, `/me/col/customer/${encodeURIComponent(customerId)}`);
+		join(base, `/me/col/customer/mod/${encodeURIComponent(customerId)}`);
 
 	return {
 		async fetch(ctx: DomainContext): Promise<CustomerData> {

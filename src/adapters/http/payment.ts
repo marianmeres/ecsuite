@@ -4,7 +4,7 @@
  * Built-in {@link PaymentAdapter} targeting a REST surface of the shape:
  *
  *   GET  {baseUrl}/by-order/:orderId    → { data: [{ model_id, data: PaymentData }, ...] }
- *   GET  {baseUrl}/col/payment/:id      → { model_id, data: PaymentData }
+ *   GET  {baseUrl}/col/payment/mod/:id  → { model_id, data: PaymentData }
  *   POST {baseUrl}/initiate             → { payment_id, redirect_url }
  *
  * All calls require `X-Session-ID`; read endpoints additionally take a JWT
@@ -85,7 +85,7 @@ export function createHttpPaymentAdapter(
 		): Promise<PaymentData> {
 			const r = await requestJson<PaymentEnvelope>(
 				doFetch,
-				join(base, `/col/payment/${encodeURIComponent(String(paymentId))}`),
+				join(base, `/col/payment/mod/${encodeURIComponent(String(paymentId))}`),
 				{ method: "GET" },
 				ctx,
 			);

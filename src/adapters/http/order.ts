@@ -3,8 +3,8 @@
  *
  * Built-in {@link OrderAdapter} targeting a REST surface of the shape:
  *
- *   GET  {baseUrl}/col/order         → { data: [{ model_id, data }, ...] }
- *   GET  {baseUrl}/col/order/:id     → { model_id, data: OrderData }
+ *   GET  {baseUrl}/col/order/mod         → { data: [{ model_id, data }, ...] }
+ *   GET  {baseUrl}/col/order/mod/:id     → { model_id, data: OrderData }
  *   POST {baseUrl}/checkout/start    → { order_id, order: OrderData, ... }
  *
  * `create()` only starts checkout — it calls `POST /checkout/start` and
@@ -53,7 +53,7 @@ export function createHttpOrderAdapter(
 		async fetchAll(ctx: DomainContext): Promise<OrderCreateResult[]> {
 			const r = await requestJson<{ data: OrderCreateResult[] }>(
 				doFetch,
-				join(base, "/col/order"),
+				join(base, "/col/order/mod"),
 				{ method: "GET" },
 				ctx,
 			);
@@ -66,7 +66,7 @@ export function createHttpOrderAdapter(
 		): Promise<OrderCreateResult> {
 			return await requestJson<OrderCreateResult>(
 				doFetch,
-				join(base, `/col/order/${encodeURIComponent(String(orderId))}`),
+				join(base, `/col/order/mod/${encodeURIComponent(String(orderId))}`),
 				{ method: "GET" },
 				ctx,
 			);

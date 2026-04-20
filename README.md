@@ -183,10 +183,10 @@ owner-scoped reads require a JWT):
 | -------- | --------------------------------------------------------------------------------------------------- |
 | cart     | `GET/POST/PUT/DELETE {baseUrl}/cart` (DELETE with optional `?product_id=` for single-item remove)   |
 | wishlist | `GET/POST/DELETE {baseUrl}/wishlist` (DELETE with optional `?product_id=` for single-item remove)   |
-| order    | `GET {baseUrl}/col/order`, `GET {baseUrl}/col/order/:id`, `POST {baseUrl}/checkout/start`           |
-| customer | `GET/PUT {baseUrl}/me/col/customer/:customerId`                                                     |
-| payment  | `GET {baseUrl}/by-order/:orderId`, `GET {baseUrl}/col/payment/:id`, `POST {baseUrl}/initiate` (body: `{ order_id, provider, return_url, cancel_url }` — server derives amount/currency from the order record) |
-| product  | `GET {baseUrl}/col/product/:id` (`fetchMany` = parallel single fetches — no batch endpoint assumed) |
+| order    | `GET {baseUrl}/col/order/mod`, `GET {baseUrl}/col/order/mod/:id`, `POST {baseUrl}/checkout/start`   |
+| customer | `GET/PUT {baseUrl}/me/col/customer/mod/:customerId`                                                 |
+| payment  | `GET {baseUrl}/by-order/:orderId`, `GET {baseUrl}/col/payment/mod/:id`, `POST {baseUrl}/initiate` (body: `{ order_id, provider, return_url, cancel_url }` — server derives amount/currency from the order record) |
+| product  | `GET {baseUrl}/col/product/mod/:id` (`fetchMany` = parallel single fetches — no batch endpoint assumed) |
 
 Adapters throw raw HTTP errors (`Error` with `.status` and `.body`
 attached); the domain manager normalizes them to `DomainError`. Responses

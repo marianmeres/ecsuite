@@ -3,7 +3,7 @@
  *
  * Built-in {@link ProductAdapter} targeting a generic collection REST surface:
  *
- *   GET {baseUrl}/col/product/:id → { model_id, data: ProductData, ... }
+ *   GET {baseUrl}/col/product/mod/:id → { model_id, data: ProductData, ... }
  *
  * The `{ model_id, data }` model envelope is unwrapped; the adapter returns
  * bare `ProductData` / `ProductData[]` to conform to the interface.
@@ -24,7 +24,7 @@ import {
 /** Options for {@link createHttpProductAdapter}. */
 export type HttpProductAdapterOptions = HttpAdapterOptions;
 
-/** Build a product adapter against the conventional `/col/product` REST surface. */
+/** Build a product adapter against the conventional `/col/product/mod` REST surface. */
 export function createHttpProductAdapter(
 	opts: HttpProductAdapterOptions = {},
 ): ProductAdapter {
@@ -37,7 +37,7 @@ export function createHttpProductAdapter(
 	): Promise<ProductData> {
 		const r = await requestJson<{ model_id: UUID; data: ProductData }>(
 			doFetch,
-			join(base, `/col/product/${encodeURIComponent(String(productId))}`),
+			join(base, `/col/product/mod/${encodeURIComponent(String(productId))}`),
 			{ method: "GET" },
 			ctx,
 		);

@@ -156,7 +156,7 @@ Deno.test("http product: fetchOne unwraps { model_id, data }", async () => {
 	const adapter = createHttpProductAdapter({ fetch });
 	const data = await adapter.fetchOne("p1", {});
 
-	assertEquals(calls[0].url, "/api/product/col/product/p1");
+	assertEquals(calls[0].url, "/api/product/col/product/mod/p1");
 	assertEquals((data as { name: string }).name, "Widget");
 });
 
@@ -182,26 +182,26 @@ Deno.test("http product: fetchMany with empty list makes zero calls", async () =
 
 // ─── order ───────────────────────────────────────────────────────────────
 
-Deno.test("http order: fetchAll GETs /col/order", async () => {
+Deno.test("http order: fetchAll GETs /col/order/mod", async () => {
 	const { fetch, calls } = makeFetch(() => ({
 		body: { data: [{ model_id: "o1", data: { status: "pending", items: [] } }] },
 	}));
 	const adapter = createHttpOrderAdapter({ fetch });
 	const orders = await adapter.fetchAll(ctx);
 
-	assertEquals(calls[0].url, "/api/order/col/order");
+	assertEquals(calls[0].url, "/api/order/col/order/mod");
 	assertEquals(orders.length, 1);
 	assertEquals(orders[0].model_id, "o1");
 });
 
-Deno.test("http order: fetchOne GETs /col/order/:id", async () => {
+Deno.test("http order: fetchOne GETs /col/order/mod/:id", async () => {
 	const { fetch, calls } = makeFetch(() => ({
 		body: { model_id: "o1", data: { status: "pending", items: [] } },
 	}));
 	const adapter = createHttpOrderAdapter({ fetch });
 	const order = await adapter.fetchOne("o1", ctx);
 
-	assertEquals(calls[0].url, "/api/order/col/order/o1");
+	assertEquals(calls[0].url, "/api/order/col/order/mod/o1");
 	assertEquals(order.model_id, "o1");
 });
 
@@ -253,7 +253,7 @@ Deno.test("http order: create without sessionId throws client-side", async () =>
 
 // ─── customer ────────────────────────────────────────────────────────────
 
-Deno.test("http customer: fetch GETs /me/col/customer/:customerId", async () => {
+Deno.test("http customer: fetch GETs /me/col/customer/mod/:customerId", async () => {
 	const { fetch, calls } = makeFetch(() => ({
 		body: {
 			model_id: "c-1",
@@ -263,7 +263,7 @@ Deno.test("http customer: fetch GETs /me/col/customer/:customerId", async () => 
 	const adapter = createHttpCustomerAdapter({ fetch });
 	const data = await adapter.fetch(ctx);
 
-	assertEquals(calls[0].url, "/api/customer/me/col/customer/c-1");
+	assertEquals(calls[0].url, "/api/customer/me/col/customer/mod/c-1");
 	assertEquals(data.email, "x@y.z");
 });
 
