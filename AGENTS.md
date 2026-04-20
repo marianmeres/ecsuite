@@ -58,15 +58,27 @@ src/
 │   ├── payment.ts            # PaymentManager
 │   └── product.ts            # ProductManager
 └── adapters/
-    ├── mod.ts                # Adapter exports
-    └── mock/                 # Mock adapters for testing
+    ├── mod.ts                # Adapter exports (re-exports mock/* and http/*)
+    ├── mock/                 # Mock adapters for testing
+    │   ├── mod.ts
+    │   ├── cart.ts
+    │   ├── wishlist.ts
+    │   ├── order.ts
+    │   ├── customer.ts
+    │   ├── payment.ts
+    │   └── product.ts
+    └── http/                 # Built-in HTTP adapters
         ├── mod.ts
-        ├── cart.ts
-        ├── wishlist.ts
-        ├── order.ts
-        ├── customer.ts
-        ├── payment.ts
-        └── product.ts
+        ├── _http.ts          # Shared fetch primitives (authHeaders, sessionHeader, requestJson)
+        ├── cart.ts           # createHttpCartAdapter
+        ├── wishlist.ts       # createHttpWishlistAdapter
+        ├── order.ts          # createHttpOrderAdapter
+        ├── customer.ts       # createHttpCustomerAdapter
+        ├── payment.ts        # createHttpPaymentAdapter (capture omitted)
+        └── product.ts        # createHttpProductAdapter
+example/
+├── index.html                # Vanilla-JS reference harness — every public verb
+└── src/app.ts                # imports ../../src/mod.ts
 tests/
 ├── cart.test.ts
 ├── wishlist.test.ts
@@ -74,6 +86,7 @@ tests/
 ├── customer.test.ts
 ├── payment.test.ts
 ├── product.test.ts
+├── http-adapters.test.ts     # Unit tests for the built-in HTTP adapters
 └── ecsuite.test.ts
 ```
 
@@ -143,7 +156,73 @@ export {
 	MockProductAdapterOptions,
 	MockWishlistAdapterOptions,
 } from "./adapters/mod.ts";
+
+// Built-in HTTP Adapters
+export {
+	createHttpCartAdapter,
+	createHttpCustomerAdapter,
+	createHttpOrderAdapter,
+	createHttpPaymentAdapter,
+	createHttpProductAdapter,
+	createHttpWishlistAdapter,
+	HttpAdapterOptions,
+	HttpCartAdapterOptions,
+	HttpCustomerAdapterOptions,
+	HttpOrderAdapterOptions,
+	HttpPaymentAdapterOptions,
+	HttpProductAdapterOptions,
+	HttpWishlistAdapterOptions,
+} from "./adapters/mod.ts";
 ```
+
+## Built-in HTTP Adapters
+
+Each factory returns an object conforming to the matching `*Adapter`
+interface in `src/types/adapter.ts`. They target a conventional commerce
+REST surface; see the `README.md` "Built-in HTTP Adapters" section for the
+endpoint table.
+
+Key rules:
+
+- Adapters are **thin** — they throw raw HTTP errors (`Error` with
+  `.status` and `.body` attached); the domain manager normalizes them to
+  `DomainError`. Don't normalize inside the adapter.
+- Authentication comes off `DomainContext`:
+  - `ctx.jwt`       → `Authorization: Bearer <jwt>`
+  - `ctx.sessionId` → `X-Session-ID`
+- `ctx.customerId` is required for the customer adapter's
+  owner-scoped route.
+- `_http.ts` holds the shared primitives (`authHeaders`, `sessionHeader`,
+  `requestJson`, `join`, `require*Id`); every adapter is ~50–70 lines.
+- `createHttpOrderAdapter.create()` is a **single-call** adapter
+  targeting `POST /checkout/start`. The addresses → delivery → payment →
+  complete checkout flow is not wrapped by the adapter in v2.x; callers
+  drive the remaining steps directly.
+- `createHttpPaymentAdapter.initiate()` posts `{ order_id, provider,
+  return_url, cancel_url }` to `POST {baseUrl}/initiate`. **No
+  `amount`/`currency` in the body** — the server derives them from the
+  order row (security: prevents client-side tampering), and the target
+  route strictly requires all four listed fields. The adapter throws a
+  client-side error if `return_url` or `cancel_url` is missing from the
+  `PaymentInitConfig`. The server additionally requires the order to have
+  passed checkout validation (addresses + delivery set) before initiating
+  payment — callers are responsible for the upstream steps.
+- `createHttpPaymentAdapter` intentionally omits `capture` — consumers
+  calling `suite.payment.capture()` will get `NOT_IMPLEMENTED` from the
+  manager. Capture is typically server-driven (webhooks + checkout
+  complete).
+- `createHttpCustomerAdapter` omits `fetchBySession` — there is no clean
+  session-scoped read endpoint on the target surface. Consumers should
+  hydrate customer state from the JWT subject claim or pass an explicit
+  `customerId` on context.
+
+## Reference Harness
+
+`example/` ships a vanilla-JS harness that exercises every public verb of
+every domain manager. It can swap between mock adapters (zero-setup
+default) and the built-in HTTP adapters (real server round-trip). Runs
+through `deno task example:build` / `example:watch` + any static file
+server.
 
 ## State Machine
 

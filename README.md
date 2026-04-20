@@ -144,6 +144,63 @@ const suite = createECSuite({
 });
 ```
 
+## Built-in HTTP Adapters
+
+For consumers whose backend exposes the conventional commerce REST surface,
+ecsuite ships ready-to-use HTTP adapters for every domain. Each factory
+takes `{ baseUrl?, fetch? }`; authentication is carried on the context
+passed into each call (`ctx.sessionId` → `X-Session-ID`; `ctx.jwt` →
+`Authorization: Bearer <jwt>`).
+
+```typescript
+import {
+	createECSuite,
+	createHttpCartAdapter,
+	createHttpCustomerAdapter,
+	createHttpOrderAdapter,
+	createHttpPaymentAdapter,
+	createHttpProductAdapter,
+	createHttpWishlistAdapter,
+} from "@marianmeres/ecsuite";
+
+const suite = createECSuite({
+	context: { sessionId: mySessionId, jwt: myJwt, customerId: myCustomerId },
+	adapters: {
+		cart: createHttpCartAdapter({ baseUrl: "/api/session" }),
+		wishlist: createHttpWishlistAdapter({ baseUrl: "/api/session" }),
+		order: createHttpOrderAdapter({ baseUrl: "/api/order" }),
+		customer: createHttpCustomerAdapter({ baseUrl: "/api/customer" }),
+		payment: createHttpPaymentAdapter({ baseUrl: "/api/payment" }),
+		product: createHttpProductAdapter({ baseUrl: "/api/product" }),
+	},
+});
+```
+
+Expected endpoints per adapter (all mutations require `X-Session-ID`, all
+owner-scoped reads require a JWT):
+
+| Adapter  | Endpoints                                                                                           |
+| -------- | --------------------------------------------------------------------------------------------------- |
+| cart     | `GET/POST/PUT/DELETE {baseUrl}/cart` (DELETE with optional `?product_id=` for single-item remove)   |
+| wishlist | `GET/POST/DELETE {baseUrl}/wishlist` (DELETE with optional `?product_id=` for single-item remove)   |
+| order    | `GET {baseUrl}/col/order`, `GET {baseUrl}/col/order/:id`, `POST {baseUrl}/checkout/start`           |
+| customer | `GET/PUT {baseUrl}/me/col/customer/:customerId`                                                     |
+| payment  | `GET {baseUrl}/by-order/:orderId`, `GET {baseUrl}/col/payment/:id`, `POST {baseUrl}/initiate` (body: `{ order_id, provider, return_url, cancel_url }` — server derives amount/currency from the order record) |
+| product  | `GET {baseUrl}/col/product/:id` (`fetchMany` = parallel single fetches — no batch endpoint assumed) |
+
+Adapters throw raw HTTP errors (`Error` with `.status` and `.body`
+attached); the domain manager normalizes them to `DomainError`. Responses
+may use `{ model_id, data }` model envelopes — adapters unwrap them
+transparently.
+
+`PaymentAdapter.capture` is intentionally omitted from
+`createHttpPaymentAdapter`; capture is typically driven server-side by
+provider webhooks + checkout completion. Calls to `suite.payment.capture()`
+will surface as `NOT_IMPLEMENTED`.
+
+See [`example/`](./example/) for a vanilla-JS reference harness exercising
+every public verb against either the HTTP adapters or the mock adapters.
+
 ## Events
 
 Subscribe to domain events:

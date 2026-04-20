@@ -45,6 +45,8 @@ export interface DomainContext {
 	customerId?: UUID;
 	/** Optional session ID */
 	sessionId?: UUID;
+	/** Optional JWT forwarded to HTTP adapters as `Authorization: Bearer <jwt>`. */
+	jwt?: string;
 	/** Additional context properties for adapter-specific needs */
 	[key: string]: unknown;
 }

@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>@marianmeres/ecsuite — commerce domain reference</title>
+<style>
+	body { font: 13px/1.5 ui-monospace, Menlo, Consolas, monospace; margin: 1rem; }
+	h1 { font-size: 1rem; margin: 0 0 .75rem; }
+	h2 { font-size: .85rem; margin: 0 0 .25rem; }
+	p { margin: 0 0 .5rem; color: #555; }
+	fieldset { border: 1px solid #888; margin: 0 0 .5rem; padding: .4rem .75rem; }
+	legend { padding: 0 .3rem; color: #333; font-weight: bold; }
+	label { display: inline-block; width: 7rem; }
+	input, select { font: inherit; padding: .15rem .3rem; margin: .1rem 0; }
+	button { font: inherit; margin: .15rem .15rem .15rem 0; padding: .15rem .55rem; cursor: pointer; }
+	.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+	pre { background: #f4f4f4; padding: .4rem; margin: 0; max-height: 18vh; overflow: auto; white-space: pre-wrap; border: 1px solid #ddd; font-size: 12px; }
+	.state-ready { background: #efe; }
+	.state-syncing { background: #ffe; }
+	.state-error { background: #fee; }
+	.state-initializing { background: #eee; }
+	#log { background: #fafafa; border: 1px solid #ddd; padding: .25rem .5rem; height: 30vh; overflow: auto; margin-top: .5rem; }
+	#log > div { white-space: pre-wrap; word-break: break-word; border-top: 1px dotted #ccc; padding: .1rem 0; }
+	#log > div:first-child { border-top: 0; }
+	.fail-toggles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .1rem .5rem; font-size: 12px; }
+	.fail-toggles label { width: auto; margin-right: .5rem; }
+</style>
+</head>
+<body>
+<h1>@marianmeres/ecsuite — commerce domain reference</h1>
+<p>
+	Vanilla-JS harness exercising every public verb of every domain manager.
+	<b>Use mocks</b> boots clickable with zero setup.
+	<b>Connect (HTTP)</b> swaps in the built-in HTTP adapters pointing at
+	<code>baseUrl</code> — a running <code>@marianmeres/full-stack-app-template</code>
+	instance with seeded products. Serve this page over http (e.g.
+	<code>cd example &amp;&amp; python3 -m http.server 8000</code>) when using
+	HTTP mode so the browser isn't a <code>file://</code> origin.
+	Note: <b>payment.initiate</b> against HTTP requires the order to have
+	been put through the full checkout flow (addresses + delivery set)
+	first, which this harness does not expose — expect a <code>400</code>
+	otherwise. Mock mode initiates freely.
+</p>
+
+<fieldset>
+	<legend>connect</legend>
+	<label for="baseUrl">base url</label>
+	<input id="baseUrl" size="40" placeholder="http://localhost:8888">
+	<label for="jwt">jwt (optional)</label>
+	<input id="jwt" size="32" placeholder="Bearer token from login">
+	<br>
+	<label for="sessionId">session id</label>
+	<input id="sessionId" size="40">
+	<label for="customerId">customer id</label>
+	<input id="customerId" size="32" placeholder="uuid (from JWT subject)">
+	<br>
+	<button id="useMocks">use mocks</button>
+	<button id="useHttp">connect (http)</button>
+	<button id="destroy">destroy</button>
+	<button id="errors">hasErrors / errors</button>
+</fieldset>
+
+<fieldset>
+	<legend>cross-domain</legend>
+	<button id="initAll">initialize(all)</button>
+	<button id="initCart">initialize([cart])</button>
+	<button id="setContext">setContext({ customerId })</button>
+	<button id="rebuild">rebuild (same mode)</button>
+</fieldset>
+
+<div class="grid">
+	<fieldset>
+		<legend>cart</legend>
+		<label for="cartProduct">product id</label>
+		<input id="cartProduct" size="20" placeholder="p-widget">
+		<label for="cartQty">qty</label>
+		<input id="cartQty" size="4" value="1">
+		<br>
+		<button data-cart="initialize">initialize</button>
+		<button data-cart="addItem">addItem</button>
+		<button data-cart="updateItemQuantity">updateItemQuantity</button>
+		<button data-cart="removeItem">removeItem</button>
+		<button data-cart="clear">clear</button>
+		<button data-cart="getEnrichedItems">getEnrichedItems</button>
+		<h2>state</h2>
+		<pre id="state-cart">—</pre>
+	</fieldset>
+
+	<fieldset>
+		<legend>wishlist</legend>
+		<label for="wishProduct">product id</label>
+		<input id="wishProduct" size="20" placeholder="p-widget">
+		<br>
+		<button data-wishlist="initialize">initialize</button>
+		<button data-wishlist="addItem">addItem</button>
+		<button data-wishlist="removeItem">removeItem</button>
+		<button data-wishlist="toggleItem">toggleItem</button>
+		<button data-wishlist="clear">clear</button>
+		<button data-wishlist="getEnrichedItems">getEnrichedItems</button>
+		<h2>state</h2>
+		<pre id="state-wishlist">—</pre>
+	</fieldset>
+
+	<fieldset>
+		<legend>order</legend>
+		<label for="orderEmail">email</label>
+		<input id="orderEmail" size="24" placeholder="buyer@example.com">
+		<label for="orderId">order id</label>
+		<input id="orderId" size="20">
+		<br>
+		<button data-order="initialize">initialize</button>
+		<button data-order="fetchAll">fetchAll</button>
+		<button data-order="fetchOne">fetchOne</button>
+		<button data-order="create">create (checkout/start)</button>
+		<h2>state</h2>
+		<pre id="state-order">—</pre>
+	</fieldset>
+
+	<fieldset>
+		<legend>customer</legend>
+		<label for="custEmail">email</label>
+		<input id="custEmail" size="24">
+		<label for="custFirst">first</label>
+		<input id="custFirst" size="10">
+		<label for="custLast">last</label>
+		<input id="custLast" size="10">
+		<br>
+		<button data-customer="initialize">initialize</button>
+		<button data-customer="refresh">refresh</button>
+		<button data-customer="update">update</button>
+		<h2>state</h2>
+		<pre id="state-customer">—</pre>
+	</fieldset>
+
+	<fieldset>
+		<legend>payment</legend>
+		<label for="payOrderId">order id</label>
+		<input id="payOrderId" size="20">
+		<label for="payId">payment id</label>
+		<input id="payId" size="20">
+		<br>
+		<button data-payment="initialize">initialize</button>
+		<button data-payment="fetchForOrder">fetchForOrder</button>
+		<button data-payment="fetchOne">fetchOne</button>
+		<button data-payment="initiate">initiate (mock provider)</button>
+		<button data-payment="capture">capture</button>
+		<h2>state</h2>
+		<pre id="state-payment">—</pre>
+	</fieldset>
+
+	<fieldset>
+		<legend>product</legend>
+		<label for="prodId">id</label>
+		<input id="prodId" size="20">
+		<label for="prodIds">ids (comma)</label>
+		<input id="prodIds" size="24">
+		<br>
+		<button data-product="getById">getById</button>
+		<button data-product="getByIds">getByIds</button>
+		<button data-product="prefetch">prefetch</button>
+		<button data-product="clearCache">clearCache</button>
+		<button data-product="listServer">list /col/product?limit=5 (http only)</button>
+		<h2>state (+ cache size)</h2>
+		<pre id="state-product">—</pre>
+	</fieldset>
+</div>
+
+<fieldset>
+	<legend>failure injection (applies to the next call on any adapter)</legend>
+	<label for="latency">latency (ms)</label>
+	<input id="latency" type="number" value="0" min="0" max="5000" step="50" size="6">
+	<div class="fail-toggles" id="failToggles"></div>
+</fieldset>
+
+<h2>log (suite.onAny + per-call run())</h2>
+<div id="log"></div>
+
+<script type="module" src="./dist/app.js"></script>
+</body>
+</html>
